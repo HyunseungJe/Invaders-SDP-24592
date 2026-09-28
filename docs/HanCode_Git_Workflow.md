@@ -89,7 +89,19 @@ docs/git-workflow
 
 The lifecycle is the same as for other working branches.
 
-### 2.5 Branch Lifetime
+### 2.5 `sync/*`
+
+Used for synchronizing changes from the upstream course repository into the team repository.
+
+Example:
+
+```text
+sync/upstream-main
+```
+
+Upstream synchronization is primarily handled by the **Dev Lead**, or by another team member explicitly delegated by the Dev Lead. Changes from a `sync/*` branch must enter `main` through a Pull Request and satisfy the verification and review conditions in Section 4.3.
+
+### 2.6 Branch Lifetime
 
 Working branches should be short-lived and focused on one task or one coherent change. Unrelated work should not be mixed into the same branch.
 
@@ -264,9 +276,9 @@ If a rebase stops with a conflict, resolve the affected files, stage them with `
 
 ### 5.3 Regular Merge
 
-Regular merge commits are not used for normal internal Pull Requests. Internal PRs use **Squash and Merge**.
+Regular merge commits are not used for normal internal Pull Requests. Internal feature, fix, and documentation PRs use **Squash and Merge**.
 
-When synchronizing with the upstream repository, preserving upstream history may require a regular merge depending on the synchronization situation. Such integration is handled under the upstream conflict rules below.
+Upstream synchronization PRs from `sync/*` branches use a **Regular Merge** instead of Squash and Merge so that the upstream commit history and ancestry are preserved. These PRs must still satisfy the same verification and review conditions before merging into `main`.
 
 ### 5.4 Merge Conflict Resolution
 
@@ -352,14 +364,14 @@ flowchart TD
 ## 7. Summary of Team Rules
 
 - All team members collaborate through the shared team repository.
-- Development is performed on short-lived `feature/*`, `fix/*`, or `docs/*` branches.
+- Development is performed on short-lived `feature/*`, `fix/*`, or `docs/*` branches; upstream synchronization uses `sync/*` branches.
 - Direct pushes to `main` are prohibited.
 - Each commit should represent one logical change.
 - Commit messages follow the `<type>: <description>` format.
 - Every change to the team repository's `main` must go through a Pull Request.
 - At least one other team member must approve a PR before merge.
 - Relevant local checks must pass and be recorded in the PR before merge. Applicable required CI checks must also pass once configured.
-- Normal PRs use **Squash and Merge**.
+- Normal feature, fix, and documentation PRs use **Squash and Merge**; upstream synchronization PRs use a **Regular Merge**.
 - Rebase is allowed only on personal working branches.
 - Rebase and force push on `main` are prohibited.
 - Individual PR conflicts are resolved by the PR author.
