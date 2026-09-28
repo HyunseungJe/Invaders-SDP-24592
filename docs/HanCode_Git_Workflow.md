@@ -12,14 +12,16 @@ Our team uses a combination of the following workflows:
 - **Feature Branch Workflow**
 - **GitHub Flow**
 
-All team members collaborate through a single shared **team repository**. Each feature, bug fix, or documentation task is developed on a separate short-lived branch rather than directly on `main`. Completed work is integrated into `main` through a Pull Request (PR), automated checks, and code review.
+All team members collaborate through a single shared **team repository**. Each feature, bug fix, or documentation task is developed on a separate short-lived branch rather than directly on `main`. Completed work is integrated into `main` through a Pull Request (PR), verification, and code review.
+
+Our eight-member team works on separate parts of the Currency System and integrates them with code from other teams.
 
 This approach is suitable for our project because it:
 
 - allows multiple team members to work in parallel without directly interfering with one another,
 - keeps unfinished work isolated from `main`,
 - provides a clear review process before integration,
-- allows automated build and test checks to validate changes before merge,
+- checks changes locally before merge and uses automated build and test checks when available,
 - keeps the `main` branch stable and easy to understand.
 
 The team repository is the center of collaboration. The workflow described in this document focuses on how individual team members contribute to that repository.
@@ -37,8 +39,8 @@ Rules:
 - `main` should always contain integrated and reviewed work.
 - Normal development must not be performed directly on `main`.
 - New working branches must be created from the latest `main`.
-- Changes should normally enter `main` only through Pull Requests.
-- Direct pushes and force pushes to `main` are prohibited during normal development.
+- Changes must enter `main` through Pull Requests.
+- Direct pushes and force pushes to `main` are prohibited.
 
 ### 2.2 `feature/*`
 
@@ -139,7 +141,7 @@ test: add CurrencyBalance unit tests
 docs: update Git workflow
 ```
 
-Commit descriptions should be short, specific, and written so that the purpose of the change is clear from the history.
+Commit descriptions should be short, specific, and written in English so that the purpose of the change is clear from the history.
 
 ---
 
@@ -152,8 +154,9 @@ A Pull Request should normally be opened when the intended task is complete and 
 Before opening a PR, the author should verify that:
 
 - the intended task has been implemented,
-- the project builds successfully,
-- relevant tests pass,
+- the project builds successfully for code changes,
+- available relevant tests pass and the affected behavior has been checked,
+- documentation changes have been checked for content, links, and rendered Markdown,
 - unnecessary debug code has been removed,
 - the branch does not contain unrelated changes.
 
@@ -167,17 +170,21 @@ Each Pull Request should clearly explain:
 - **Why it changed**
 - **How it was tested**
 
+PR descriptions should be written in English and include the verification commands and results, or the manual checks performed.
+
 ### 4.3 Review and Approval Conditions
 
 A Pull Request may be merged only when all of the following conditions are satisfied:
 
-- automated build checks pass,
-- automated tests pass,
+- relevant local checks pass and their results are recorded in the PR,
+- applicable required CI checks pass once CI is configured,
 - at least **one other team member** approves the PR,
 - unresolved review comments have been addressed,
 - no unresolved merge conflict remains.
 
 The PR author's own approval does not count toward the required approval.
+
+Before CI is available, the author must build code changes and run the available relevant tests. Behavior not covered by automated tests must be checked manually. Documentation-only changes require checks of the content, links, and rendered Markdown, including diagrams. Reviewers must check the recorded results before approval.
 
 Reviewers should focus on:
 
@@ -191,14 +198,13 @@ Automated checks should handle mechanical validation such as build and test exec
 
 ### 4.4 Direct Pushes to `main`
 
-Direct pushes to `main` are prohibited during normal development.
+Direct pushes to the team repository's `main` are prohibited.
 
-The only exceptions are cases where a conflict must be resolved during:
+Upstream synchronization and related conflict resolution must be performed on a separate working branch. The changes must enter the team repository's `main` through a PR that meets the verification and review conditions in Section 4.3.
 
-1. synchronization between the upstream repository and the team repository, or
-2. integration of the team repository into the upstream repository.
+These operations are handled by the **Dev Lead**, or by another team member explicitly delegated by the Dev Lead when the Dev Lead is unavailable or unable to perform the resolution.
 
-These exceptional operations are handled by the **Dev Lead**, or by another team member explicitly delegated by the Dev Lead when the Dev Lead is unavailable or unable to perform the resolution.
+PRs to the upstream course repository must follow the course's review and merge rules, including review by at least one other team.
 
 ---
 
@@ -235,9 +241,12 @@ Rebase may be used **only on a personal working branch**.
 
 A developer may rebase a personal branch onto the latest `main` when they want to update the branch before integration.
 
-Example:
+Example, assuming `feature/currency-system` already exists and is used only by you. Commit or stash local changes before starting:
 
 ```bash
+git switch feature/currency-system
+git status --short
+# Continue only if the working tree and index are clean.
 git fetch origin
 git rebase origin/main
 ```
@@ -249,6 +258,9 @@ Rules:
 - History rewriting on `main` is prohibited.
 - Force pushes to `main` and shared branches are prohibited.
 - If a personal branch has already been pushed and must be updated after a rebase, `git push --force-with-lease` may be used only on that personal branch.
+- If the lease is rejected, fetch and inspect the remote changes before deciding how to proceed. Do not retry with `--force`.
+
+If a rebase stops with a conflict, resolve the affected files, stage them with `git add`, and run `git rebase --continue`. Repeat until the rebase finishes. Use `git rebase --abort` to cancel the rebase.
 
 ### 5.3 Regular Merge
 
@@ -266,9 +278,10 @@ The PR author must:
 
 1. update the branch with the latest required changes,
 2. resolve the conflict,
-3. rebuild and retest the affected code,
-4. push the resolved branch,
-5. complete the normal review process.
+3. stage the resolved files and complete the merge commit or continue the rebase until it finishes,
+4. repeat the relevant local checks described in Section 4.3,
+5. push the resolved branch to update the existing PR,
+6. have the updated changes reviewed before merge.
 
 If the conflict involves code primarily maintained by another member, the PR author may coordinate with that member, but the PR author remains responsible for completing the resolution.
 
@@ -283,7 +296,7 @@ are primarily the responsibility of the **Dev Lead**.
 
 If the Dev Lead is unavailable or unable to resolve the conflict, the Dev Lead may delegate the task to another team member. The delegated member then performs the resolution on behalf of the team.
 
-After any merge conflict is resolved, the affected code must be built and tested again before integration continues.
+The resolution must be completed on a working branch and pass the verification and review conditions in Section 4.3 before it enters the team repository's `main`. Code changes must be built and tested again; documentation changes must be checked for content and rendering.
 
 ---
 
@@ -296,13 +309,13 @@ The standard workflow for a team member is:
 3. Create a new working branch from the latest `main`.
 4. Implement the task.
 5. Commit logical changes using the agreed commit format.
-6. Build and test the changes locally.
+6. Run the relevant local checks.
 7. Push the working branch to the team repository.
 8. Open a Pull Request to `main`.
-9. Wait for automated build and test checks.
+9. Record the local verification results in the PR and wait for any applicable required CI checks.
 10. Receive code review from at least one other team member.
-11. If changes are requested, update the same branch and push additional commits.
-12. Resolve any merge conflicts if necessary.
+11. If changes are requested, commit the revisions, repeat the checks, and push to the same branch for review.
+12. Resolve any merge conflicts, complete the merge or rebase, and repeat verification and review.
 13. After all checks pass and at least one approval is received, use **Squash and Merge**.
 14. Delete the completed working branch.
 
@@ -314,10 +327,10 @@ flowchart TD
     B --> C[Create Working Branch]
     C --> D[Implement Changes]
     D --> E[Commit Logical Changes]
-    E --> F[Build and Test Locally]
+    E --> F[Run Relevant Local Checks]
     F --> G[Push Branch]
-    G --> H[Open Pull Request]
-    H --> I[Automated Build and Tests]
+    G --> H[Open or Update Pull Request]
+    H --> I[Verify Local Results and Applicable CI Checks]
 
     I -->|Failed| D
     I -->|Passed| J[Code Review]
@@ -326,7 +339,8 @@ flowchart TD
     J -->|Approved| K{Merge Conflict?}
 
     K -->|Yes| L[PR Author Resolves Conflict]
-    L --> F
+    L --> P[Stage Files and Complete Merge or Rebase]
+    P --> F
 
     K -->|No| M[Squash and Merge]
     M --> N[Delete Working Branch]
@@ -339,12 +353,12 @@ flowchart TD
 
 - All team members collaborate through the shared team repository.
 - Development is performed on short-lived `feature/*`, `fix/*`, or `docs/*` branches.
-- Normal development directly on `main` is prohibited.
+- Direct pushes to `main` are prohibited.
 - Each commit should represent one logical change.
 - Commit messages follow the `<type>: <description>` format.
-- Every normal change to `main` must go through a Pull Request.
+- Every change to the team repository's `main` must go through a Pull Request.
 - At least one other team member must approve a PR before merge.
-- Automated build and tests must pass before merge.
+- Relevant local checks must pass and be recorded in the PR before merge. Applicable required CI checks must also pass once configured.
 - Normal PRs use **Squash and Merge**.
 - Rebase is allowed only on personal working branches.
 - Rebase and force push on `main` are prohibited.
