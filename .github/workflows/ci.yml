@@ -21,3 +21,17 @@ jobs:
           mkdir -p out
           find src -name "*.java" > sources.txt
           javac -Xlint:all -encoding UTF-8 -d out @sources.txt
+
+      - name: Unit tests (JUnit 5)
+        run: |
+          if [ ! -d test ]; then
+            echo "No test directory, skipping unit tests."
+            exit 0
+          fi
+          mkdir -p tools out-test
+          curl -fsSL -o tools/junit-console.jar \
+            https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.14.4/junit-platform-console-standalone-1.14.4.jar
+          find test -name "*.java" > test-sources.txt
+          javac -encoding UTF-8 -cp out:tools/junit-console.jar -d out-test @test-sources.txt
+          java -Djava.awt.headless=true -jar tools/junit-console.jar execute \
+            --class-path out:out-test --scan-class-path out-test
