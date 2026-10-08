@@ -73,4 +73,40 @@ class InventoryManagerTest {
         assertFalse(inventory.remove("potion", -2));
         assertEquals(5, inventory.getQuantity("potion"));
     }
+
+    @Test
+    void testRepeatedAdditions() {
+        assertTrue(inventory.add("potion", 5));
+        assertTrue(inventory.add("potion", 3));
+        assertEquals(8, inventory.getQuantity("potion"));
+    }
+
+    @Test
+    void testRejectedRemovalsPreserveInventory() {
+        inventory.add("potion", 10);
+
+        assertFalse(inventory.remove(null, 1));
+        assertFalse(inventory.remove("   ", 1));
+        assertFalse(inventory.remove("potion", 0));
+
+        // Invariant: rejected operations must leave state unchanged
+        assertEquals(10, inventory.getQuantity("potion"));
+    }
+
+    @Test
+    void testItemIndependence() {
+        inventory.add("potion", 5);
+        inventory.add("bomb", 3);
+
+        // Modify one item and assert the other is unaffected
+        assertTrue(inventory.remove("potion", 2));
+        assertEquals(3, inventory.getQuantity("potion"));
+        assertEquals(3, inventory.getQuantity("bomb"));
+
+        // Completely remove one item and verify independence
+        assertTrue(inventory.remove("potion", 3));
+        assertFalse(inventory.has("potion"));
+        assertEquals(0, inventory.getQuantity("potion"));
+        assertEquals(3, inventory.getQuantity("bomb"));
+    }
 }
