@@ -13,15 +13,14 @@ We aim to bring the Space Invaders remake to life visually — making every expl
 
 **Team Roles:**
 
-| Role | Member | Responsibility |
-|---|---|---|
+| Role | Member                                                  | Responsibility |
+|---|---------------------------------------------------------|---|
 | Team Leader | [Aymeric Geron](https://github.com/AymericGe/AymericGe) | Coordinates tasks, tracks progress, communicates with other teams, manages the GitHub board/PRs |
-| Particle Effects Lead | [Junlin Chan](https://github.com/jiyurin) | Builds and tunes explosion particle systems |
-| Color & Shader Artist | [Helena Ding](https://github.com/helena-ding) | Defines color palettes, lighting/flash effects, shader-based visuals |
-| Background Artist | [ZHUMAKHMETOV MIKHAIL](https://github.com/mdsn13) | Designs and implements background art/parallax scrolling |
-| UI/Icon Designer | [Oluwadamilola Tinubu](https://github.com/DamiT123) | Creates new icons and visual assets used across the game |
-| Homepage/Layout Designer | [Liya Aklil](https://github.com/aklil24) | Designs and implements the homepage/main menu layout |
-| QA & Integration Lead | [Zhang ZEWEI](http://github.com/qingjiu-hash) | Tests effects in-game, checks performance, integrates with other teams' systems |
+| Particle Effects Lead | [Junlin Chan](https://github.com/jiyurin)               | Builds and tunes explosion particle systems |
+| Color & Shader Artist | [Helena Ding](https://github.com/helena-ding), [Liya Aklil](https://github.com/aklil24)         | Defines color palettes, lighting/flash effects, shader-based visuals |
+| Background Artist | [ZHUMAKHMETOV MIKHAIL](https://github.com/mdsn13)       | Designs and implements background art/parallax scrolling |
+| UI/Icon Designer | [Oluwadamilola Tinubu](https://github.com/DamiT123)     | Creates new icons and visual assets used across the game |
+| QA & Integration Lead | [Zhang ZEWEI](http://github.com/qingjiu-hash)           | Tests effects in-game, checks performance, integrates with other teams' systems |
 
 ## 2. Team Requirements
 

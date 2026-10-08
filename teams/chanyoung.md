@@ -11,12 +11,12 @@ Team repository: [nnnrc/Invaders-SDP-24592](https://github.com/nnnrc/Invaders-SD
 
 | Name | Role | GitHub |
 | --- | --- | --- |
-| Chanyoung Lee | Team Leader / UI & Item Sound Effects | [leechanyoung0710](https://github.com/leechanyoung0710) |
-| Sihoon Kim | Audio Manager & Integration | [nnnrc](https://github.com/nnnrc) |
-| Heyonmin Jeon | Audio Controls | [oihsie](https://github.com/oihsie) |
-| Jaesung Yoo | UI & Item Sound Effects | [jaesung-rtp](https://github.com/jaesung-rtp) |
+| Chanyoung Lee | Team Leader / Audio Controls | [leechanyoung0710](https://github.com/leechanyoung0710) |
+| Sihoon Kim | Audio Manager / Maintainer | [nnnrc](https://github.com/nnnrc) |
+| Heyonmin Jeon | UI & Item Sound Effects | [oihsie](https://github.com/oihsie) |
+| Jaesung Yoo | Audio Controls | [jaesung-rtp](https://github.com/jaesung-rtp) |
 | Jiseok Byun | Game Sound Effects | [jisuk24](https://github.com/jisuk24) |
-| Taesu Park | Audio Controls | [ptsoo0602-dev](https://github.com/ptsoo0602-dev) |
+| Taesu Park | UI & Item Sound Effects | [ptsoo0602-dev](https://github.com/ptsoo0602-dev) |
 | EunJi Park | Game Sound Effects | [ej040320](https://github.com/ej040320) |
 | Lana MANGIN | Background Music | [LanaMANGIN](https://github.com/LanaMANGIN) |
 | Chloé DESCAMPS | Background Music | [DescampsC](https://github.com/DescampsC) |
