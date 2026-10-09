@@ -8,11 +8,11 @@ This document defines the Git workflow used within the **HanCode team repository
 
 Our team uses a combination of the following workflows:
 
-- **Centralized Workflow**
+- **Trunk-based Development**
 - **Feature Branch Workflow**
 - **GitHub Flow**
 
-All team members collaborate through a single shared **team repository**. Each feature, bug fix, or documentation task is developed on a separate short-lived branch rather than directly on `main`. Completed work is integrated into `main` through a Pull Request (PR), verification, and code review.
+All team members collaborate through a single shared **team repository**, with `main` serving as the common trunk. Each feature, bug fix, or documentation task is developed on a separate short-lived branch rather than directly on `main`. Small changes are integrated frequently into `main` through a Pull Request (PR), verification, and code review.
 
 Our eight-member team works on separate parts of the Currency System and integrates them with code from other teams.
 
@@ -24,7 +24,7 @@ This approach is suitable for our project because it:
 - checks changes locally before merge and uses automated build and test checks when available,
 - keeps the `main` branch stable and easy to understand.
 
-The team repository is the center of collaboration. The workflow described in this document focuses on how individual team members contribute to that repository.
+The team repository is the center of collaboration, and `main` is the shared integration point for ongoing development. The workflow described in this document focuses on how individual team members contribute to that repository.
 
 ---
 
@@ -32,7 +32,7 @@ The team repository is the center of collaboration. The workflow described in th
 
 ### 2.1 `main`
 
-`main` is the stable integration branch of the team repository.
+`main` is the team's single shared trunk and stable integration branch. The team does not maintain a separate long-lived development branch such as `develop`.
 
 Rules:
 
@@ -364,6 +364,9 @@ flowchart TD
 ## 7. Summary of Team Rules
 
 - All team members collaborate through the shared team repository.
+- `main` is the single shared trunk.
+- Small, verified changes are integrated frequently through short-lived branches and reviewed Pull Requests.
+- Long-lived development branches are not used.
 - Development is performed on short-lived `feature/*`, `fix/*`, or `docs/*` branches; upstream synchronization uses `sync/*` branches.
 - Direct pushes to `main` are prohibited.
 - Each commit should represent one logical change.

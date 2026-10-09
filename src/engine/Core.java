@@ -8,6 +8,7 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import currency.PlayerAssets;
 import screen.GameScreen;
 import screen.HighScoreScreen;
 import screen.ScoreScreen;
@@ -64,6 +65,8 @@ public final class Core {
 	private static Screen currentScreen;
 	/** Difficulty settings list. */
 	private static List<GameSettings> gameSettings;
+	/** Player assets shared across levels and new games in this session. */
+	private static PlayerAssets playerAssets;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
 			.getSimpleName());
@@ -112,6 +115,7 @@ public final class Core {
 		gameSettings.add(SETTINGS_LEVEL_6);
 		gameSettings.add(SETTINGS_LEVEL_7);
 		
+		playerAssets = new PlayerAssets();
 		GameState gameState;
 
 		int returnCode = 1;
