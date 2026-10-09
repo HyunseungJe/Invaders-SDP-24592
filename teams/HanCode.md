@@ -24,50 +24,40 @@ Our goal is to develop a robust, bug-free, and scalable currency system that fee
 | Minkyung Yeo                | Documentation | https://github.com/yeominkyung |
 
 ---
-
 ## 2. Team Requirements
 
-### Overall Requirement:
+### Overall Requirement
 
-Currency System. Our team is responsible for managing the logic, balance, and persistence of the in-game currency earned by players during gameplay.
+Currency System. Our team is responsible for managing the in-game currency economy, including currency balances, gameplay rewards, persistence, purchases, and the ownership or unlock status of purchasable content.
 
 ---
 
 ## 3. Detailed Requirements
 
-1. Implement a core currency class to add, deduct, and track balances
-   independently from the player's score. Keep balances non-negative.
+1. Balance Management  
+   Manage the player's in-game currency balance independently from the player's score. Support balance queries, additions, and deductions while preventing negative balances, overspending, and invalid balance updates. Rejected operations must leave the balance unchanged.
 
-2. Define reward amounts and drop rates for enemy defeats or level completion.
-   Prevent duplicate rewards from the same event. The level-completion events
-   and level difficulty data will be provided by the Level Design System.
+2. Reward System  
+   Define and apply currency reward amounts and drop rates for gameplay events such as enemy defeats and level completion. Level-completion events and difficulty data will be provided by the Level Design System, while enemy-defeat information will be provided by the Player & Enemy Ship Variety System.
 
-3. Save and load the currency balance between game sessions. Validate loaded
-   values and report failures without replacing valid balances or save data
-   with invalid data.
+3. Persistence  
+   Save and load the player's currency-related state between game sessions. Validate loaded data before applying it, report persistence failures, and ensure that invalid data does not overwrite valid runtime or saved state.
 
-4. Provide an interface for balance queries and purchase-related deductions.
-   Ensure that currency is permanently deducted only when the corresponding
-   item purchase is successfully completed.
+4. Shop / Purchase System  
+   Provide purchase-related operations that allow purchasable content to be acquired using in-game currency. Validate the player's available balance and the requested price before completing a purchase. A successful purchase must deduct the required currency, while a failed or rejected purchase must leave the player's balance and ownership state unchanged.
 
-5. Prevent overspending and invalid balance updates. Rejected operations
-   must leave the balance unchanged. Test normal transactions,
-   insufficient funds, and invalid input handling.
+5. Ownership Management  
+   Track the ownership or unlock status of content acquired through purchases, such as items, upgrades, BGM, stages, or other future purchasable content. Provide an interface that allows other systems to determine whether specific content has been purchased or unlocked. Ownership and unlock states must persist across game sessions.
 
 ---
 
 ## 4. Dependencies on Other Teams
 
-1. Level Design System: We depend on this team to trigger and broadcast a
-   'Level Completed' event containing the level ID and the difficulty data
-   required to calculate and award the correct end-of-level currency bonus.
+1. Level Design System:  
+   We depend on this team to trigger and broadcast a 'Level Completed' event containing the level ID and the difficulty data required to calculate and award the appropriate end-of-level currency reward.
 
-2. Item System: We depend on this team to send valid purchase requests with
-   accurate item prices. We also require a definitive success/failure status
-   for item delivery so that currency is permanently deducted only when the
-   purchase is successfully completed.
+2. Item System:  
+   We depend on this team to provide the information required for purchasable items or upgrades, including their identifiers and prices, and to coordinate purchase results when item delivery or activation is required.
 
-3. Player & Enemy Ship Variety: We depend on this team to broadcast an
-   'Enemy Defeated' event that includes the enemy type or ID. We need this
-   information to apply our drop-rate tables and award the correct amount of
-   currency for each defeat.
+3. Player & Enemy Ship Variety:  
+   We depend on this team to broadcast an 'Enemy Defeated' event containing the enemy information required to determine the appropriate drop rate and reward amount.
