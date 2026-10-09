@@ -64,4 +64,8 @@ public class InventoryManager {
 
         return true;
     }
-}   
+    /** Returns a detached copy for asset snapshots within this package. */
+    Map<String, Integer> copyItemQuantities() {
+        return new HashMap<>(this.itemQuantities);
+    }
+}

@@ -31,4 +31,9 @@ public class UnlockManager {
         this.unlockedContentIds.add(contentId);
         return true;
     }
+
+    /** Returns a detached copy for asset snapshots within this package. */
+    Set<String> copyUnlockedContentIds() {
+        return new HashSet<>(this.unlockedContentIds);
+    }
 }
