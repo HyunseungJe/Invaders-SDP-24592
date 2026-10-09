@@ -42,6 +42,6 @@ The Main Menu depends on the following modules:
 - **Game Mode Selection** → [Module 10](/teams/friends.md)  
   The Main Menu must allow the player to select between single-player and two-player game modes.
 
-- **Shop & Hangar** → [Modules 4](/teams/Hancode.md), [Module 5](/teams/Best-French.md) & [Module 9](/teams/KimchiBaguette.md) 
+- **Shop & Hangar** → [Modules 4](/teams/HanCode.md), [Module 5](/teams/Best-French.md) & [Module 9](/teams/KimchiBaguette.md) 
   The Main Menu must provide access to the shop, currency, available items, and ship customization.
 
