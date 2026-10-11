@@ -18,7 +18,7 @@ Our goal is to develop a robust, bug-free, and scalable currency system that fee
 | Khuvituguldur               | Developer | https://github.com/tuugy-rvn |
 | Isaac de Jesus Rojas Torres | Developer | https://github.com/isaacrt54 |
 | Joshua Hernández Ruiz       | Developer | https://github.com/Jperf0 |
-| Anukhishig                  | QA Tester | https://github.com/Anukhishig |
+| Byambakhishig Anukhishig    | QA Tester | https://github.com/Anukhishig |
 | Byambakhishig Khishigjin    | Documentation | https://github.com/hishigjinb-svg |
 | Hyunseung Je                | Dev Lead / Collaborator | https://github.com/HyunseungJe |
 | Minkyung Yeo                | Documentation | https://github.com/yeominkyung |
