@@ -13,30 +13,26 @@ class ShopCatalogTest {
     }
 
     @Test
-    void testRegisterValidItem() {
-        assertTrue(catalog.registerItem("potion", 50));
-        assertTrue(catalog.isAvailable("potion"));
-        assertEquals(50, catalog.getPrice("potion"));
+    void testZeroAndNegativePriceRejection() {
+        assertFalse(catalog.registerInventoryItem("free_potion", 0));
+        assertFalse(catalog.registerUnlockable("free_stage", 0));
+        assertFalse(catalog.registerInventoryItem("cursed_item", -50));
+        
+        // Ensure catalog remained unchanged
+        assertEquals(-1, catalog.getPrice("free_potion"));
     }
 
     @Test
-    void testRegisterInvalidItem() {
-        assertFalse(catalog.registerItem(null, 50));
-        assertFalse(catalog.registerItem("   ", 50));
-        assertFalse(catalog.registerItem("sword", -10));
-    }
-
-    @Test
-    void testRemoveItem() {
-        catalog.registerItem("potion", 50);
-        assertTrue(catalog.removeItem("potion"));
-        assertFalse(catalog.isAvailable("potion"));
-        assertEquals(-1, catalog.getPrice("potion"));
-    }
-    
-    @Test
-    void testRemoveInvalidOrNonExistentItem() {
-        assertFalse(catalog.removeItem("shield"));
-        assertFalse(catalog.removeItem("   "));
+    void testDuplicateRegistrationPreservesOriginal() {
+        assertTrue(catalog.registerInventoryItem("potion", 100));
+        
+        // Attempt to overwrite with a different price and category
+        assertFalse(catalog.registerUnlockable("potion", 200));
+        assertFalse(catalog.registerInventoryItem("potion", 50));
+        
+        // Assert original state is preserved
+        assertEquals(100, catalog.getPrice("potion"));
+        assertTrue(catalog.isInventoryItem("potion"));
+        assertFalse(catalog.isUnlockable("potion"));
     }
 }

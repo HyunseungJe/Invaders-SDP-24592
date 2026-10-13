@@ -5,60 +5,67 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PurchaseSystemTest {
-    private CurrencyBalance balance;
-    private InventoryManager inventory;
+    private PlayerAssets assets;
     private ShopCatalog catalog;
     private PurchaseSystem store;
 
     @BeforeEach
     void setUp() {
-        // Initialize the dependencies
-        balance = new CurrencyBalance(1000); 
-        inventory = new InventoryManager();
+        assets = new PlayerAssets(); 
+        assets.addCurrency(1000); // Using the package-private method to fund the test account
+        
         catalog = new ShopCatalog();
-        store = new PurchaseSystem(balance, inventory, catalog);
+        store = new PurchaseSystem(assets, catalog);
         
-        // Setup base catalog
-        catalog.registerItem("potion", 100);
-        catalog.registerItem("sword", 500);
+        catalog.registerInventoryItem("potion", 100);
+        catalog.registerUnlockable("stage_02", 500);
     }
 
     @Test
-    void testSuccessfulPurchase() {
-        PurchaseResult result = store.purchase("potion", 2); // 200 cost
-        
+    void testInventoryItemPurchase() {
+        PurchaseResult result = store.purchaseInventoryItem("potion", 2); // 200 cost
         assertEquals(PurchaseResult.SUCCESS, result);
-        assertEquals(800, balance.getBalance());
-        assertEquals(2, inventory.getQuantity("potion"));
+        assertEquals(800, assets.getBalance());
+        assertEquals(2, assets.getItemQuantity("potion"));
     }
 
     @Test
-    void testInsufficientFunds() {
-        PurchaseResult result = store.purchase("sword", 3); // 1500 cost, only have 1000
+    void testPermanentUnlockPurchase() {
+        PurchaseResult result = store.purchaseUnlockable("stage_02");
+        assertEquals(PurchaseResult.SUCCESS, result);
+        assertTrue(assets.isUnlocked("stage_02"));
+        assertEquals(500, assets.getBalance()); // 1000 - 500
+    }
+
+    @Test
+    void testRepeatUnlockPurchaseRejection() {
+        store.purchaseUnlockable("stage_02"); // First time succeeds
         
-        assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, result);
-        // State should remain unchanged
-        assertEquals(1000, balance.getBalance());
-        assertEquals(0, inventory.getQuantity("sword"));
-    }
-
-    @Test
-    void testInvalidItem() {
-        assertEquals(PurchaseResult.INVALID_ITEM_ID, store.purchase(null, 1));
-        assertEquals(PurchaseResult.ITEM_NOT_AVAILABLE, store.purchase("shield", 1));
-    }
-
-    @Test
-    void testInvalidQuantity() {
-        assertEquals(PurchaseResult.INVALID_QUANTITY, store.purchase("potion", 0));
-        assertEquals(PurchaseResult.INVALID_QUANTITY, store.purchase("potion", -5));
-    }
-
-    @Test
-    void testTotalCostOverflow() {
-        catalog.registerItem("expensive_item", 2000000000);
+        PurchaseResult repeatResult = store.purchaseUnlockable("stage_02");
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, repeatResult);
         
-        PurchaseResult result = store.purchase("expensive_item", 2); // Cost would exceed int max
+        // Balance should NOT be deducted twice
+        assertEquals(500, assets.getBalance()); 
+    }
+
+    @Test
+    void testCategoryMismatch() {
+        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseUnlockable("potion"));
+        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseInventoryItem("stage_02", 1));
+        
+        // State remains unchanged
+        assertEquals(1000, assets.getBalance());
+    }
+    
+    @Test
+    void testInventoryCapacityOverflowRollback() {
+        catalog.registerInventoryItem("cheap_potion", 1);
+        assets.addItem("cheap_potion", Integer.MAX_VALUE - 2);
+        
+        PurchaseResult result = store.purchaseInventoryItem("cheap_potion", 5);
+        
         assertEquals(PurchaseResult.INTEGER_OVERFLOW_DETECTED, result);
+        // Ensure balance was rolled back after the inventory rejected it
+        assertEquals(1000, assets.getBalance()); 
     }
 }

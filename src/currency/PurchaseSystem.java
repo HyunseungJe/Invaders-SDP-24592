@@ -1,63 +1,74 @@
 package currency;
 
 public class PurchaseSystem {
-    
-    // Required references passed from the main game loop / dependency injection
-    private final CurrencyBalance balance;
-    private final InventoryManager inventory;
+    private final PlayerAssets assets;
     private final ShopCatalog catalog;
 
-    public PurchaseSystem(CurrencyBalance balance, InventoryManager inventory, ShopCatalog catalog) {
-        this.balance = balance;
-        this.inventory = inventory;
+    public PurchaseSystem(PlayerAssets assets, ShopCatalog catalog) {
+        this.assets = assets;
         this.catalog = catalog;
     }
 
-    public PurchaseResult purchase(String itemId, int quantity) {
-        // 1. Basic validation
+    public PurchaseResult purchaseInventoryItem(String itemId, int quantity) {
         if (itemId == null || itemId.trim().isEmpty()) {
             return PurchaseResult.INVALID_ITEM_ID;
         }
         if (quantity <= 0) {
             return PurchaseResult.INVALID_QUANTITY;
         }
-
-        // 2. Check catalog
-        if (!catalog.isAvailable(itemId)) {
-            return PurchaseResult.ITEM_NOT_AVAILABLE;
+        if (!catalog.isInventoryItem(itemId)) {
+            return PurchaseResult.CATEGORY_MISMATCH;
         }
-        
-        int unitPrice = catalog.getPrice(itemId);
 
-        // 3. Prevent total cost integer overflow
-        long totalCostLong = (long) unitPrice * (long) quantity;
+        int price = catalog.getPrice(itemId);
+        long totalCostLong = (long) price * (long) quantity;
         if (totalCostLong > Integer.MAX_VALUE) {
-             return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
+            return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
         }
         int totalCost = (int) totalCostLong;
 
-        // 4. Check funds
-        if (!balance.canAfford(totalCost)) {
+        if (!assets.canAfford(totalCost)) {
             return PurchaseResult.INSUFFICIENT_FUNDS;
         }
 
-        // 5. Check inventory capacity (prevent overflow in inventory)
-        int currentInvQuantity = inventory.getQuantity(itemId);
-        if (Integer.MAX_VALUE - currentInvQuantity < quantity) {
-            return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
+        if (!assets.deductCurrency(totalCost)) {
+            return PurchaseResult.INSUFFICIENT_FUNDS;
         }
 
-        // 6. Execute transaction (Both must succeed to maintain integrity)
-        if (balance.deduct(totalCost)) {
-            if (inventory.add(itemId, quantity)) {
-                return PurchaseResult.SUCCESS;
-            } else {
-                // Rollback if inventory fails unexpectedly
-                balance.add(totalCost);
-                return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
-            }
+        // Attempt to grant the item. If it fails (e.g., overflow), rollback the balance.
+        if (!assets.addItem(itemId, quantity)) {
+            assets.addCurrency(totalCost); 
+            return PurchaseResult.INTEGER_OVERFLOW_DETECTED; 
         }
-        
-        return PurchaseResult.INSUFFICIENT_FUNDS;
+
+        return PurchaseResult.SUCCESS;
+    }
+
+    public PurchaseResult purchaseUnlockable(String itemId) {
+        if (itemId == null || itemId.trim().isEmpty()) {
+            return PurchaseResult.INVALID_ITEM_ID;
+        }
+        if (!catalog.isUnlockable(itemId)) {
+            return PurchaseResult.CATEGORY_MISMATCH;
+        }
+
+        // Reject if already unlocked without charging
+        if (assets.isUnlocked(itemId)) {
+            return PurchaseResult.ALREADY_UNLOCKED;
+        }
+
+        int price = catalog.getPrice(itemId);
+
+        if (!assets.deductCurrency(price)) {
+            return PurchaseResult.INSUFFICIENT_FUNDS;
+        }
+
+        // Attempt to grant the unlock. Rollback if unexpected failure occurs.
+        if (!assets.unlock(itemId)) {
+            assets.addCurrency(price);
+            return PurchaseResult.ALREADY_UNLOCKED; 
+        }
+
+        return PurchaseResult.SUCCESS;
     }
 }
