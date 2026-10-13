@@ -1,5 +1,7 @@
 package engine;
 
+import currency.PlayerAssetsState;
+
 import java.awt.Font;
 import java.awt.FontFormatException;
 import java.io.BufferedReader;
@@ -15,10 +17,10 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.logging.Logger;
 
 import engine.DrawManager.SpriteType;
@@ -37,6 +39,9 @@ public final class FileManager {
 	private static Logger logger;
 	/** Max number of high scores. */
 	private static final int MAX_SCORES = 7;
+
+	/**Default save file path.*/
+	private static final String ASSETS_SAVE_PATH = "res/player_assets.properties";
 
 	/**
 	 * private constructor.
@@ -251,7 +256,7 @@ public final class FileManager {
 
 			logger.info("Saving user high scores.");
 
-			// Saves 7 or less scores.
+			// Saves 7 or fewer scores.
 			int savedCount = 0;
 			for (Score score : highScores) {
 				if (savedCount >= MAX_SCORES)
@@ -268,4 +273,84 @@ public final class FileManager {
 				bufferedWriter.close();
 		}
 	}
+
+	/**
+	 * Saves the current PlayerAssetsState snapshot to persistent storage.
+	 *
+	 * @param state the PlayerAssetsState snapshot to save
+	 * @throws IOException if an I/O error occurs during writing
+	 */
+	public void savePlayerAssets(PlayerAssetsState state) throws IOException {
+		if (state == null) {
+			throw new IllegalArgumentException("PlayerAssetsState cannot be null.");
+		}
+
+		Properties properties = new Properties();
+		properties.setProperty("balance", String.valueOf(state.getBalance()));
+
+		// Serialize unlocked content IDs
+		properties.setProperty("unlockedContentIds", String.join(",", state.getUnlockedContentIds()));
+
+		// Serialize item quantities (id:qty;)
+		StringBuilder itemsSb = new StringBuilder();
+		state.getItemQuantities().forEach((id, qty) -> itemsSb.append(id).append(":").append(qty).append(";"));
+		properties.setProperty("itemQuantities", itemsSb.toString());
+
+		Path path = Paths.get(ASSETS_SAVE_PATH);
+		if (path.getParent() != null) {
+			Files.createDirectories(path.getParent());
+		}
+
+		try (OutputStream os = Files.newOutputStream(path)) {
+			properties.store(os, "Player Assets Save Data");
+			logger.info("Successfully saved player assets state to " + ASSETS_SAVE_PATH);
+		}
+	}
+
+	/**
+	 * Loads the PlayerAssetsState snapshot from persistent storage.
+	 *
+	 * @return the loaded or default PlayerAssetsState snapshot
+	 * @throws IOException if an I/O error occurs during reading
+	 */
+	public PlayerAssetsState loadPlayerAssets() throws IOException {
+		Path path = Paths.get(ASSETS_SAVE_PATH);
+		if (!Files.exists(path)) {
+			logger.info("Save file not found at " + ASSETS_SAVE_PATH + ". Returning default initial state.");
+			return new PlayerAssetsState(0, Collections.emptySet(), Collections.emptyMap());
+		}
+
+		Properties properties = new Properties();
+		try (InputStream is = Files.newInputStream(path)) {
+			properties.load(is);
+		}
+
+		int balance = Integer.parseInt(properties.getProperty("balance", "0"));
+
+		String unlocksRaw = properties.getProperty("unlockedContentIds", "");
+		Set<String> unlockedIds = new HashSet<>();
+		if (!unlocksRaw.trim().isEmpty()) {
+			for (String id : unlocksRaw.split(",")) {
+				if (!id.trim().isEmpty()) {
+					unlockedIds.add(id.trim());
+				}
+			}
+		}
+
+		String itemsRaw = properties.getProperty("itemQuantities", "");
+		Map<String, Integer> itemQuantities = new HashMap<>();
+		if (!itemsRaw.trim().isEmpty()) {
+			for (String pair : itemsRaw.split(";")) {
+				if (!pair.trim().isEmpty() && pair.contains(":")) {
+					String[] parts = pair.split(":");
+					if (parts.length == 2) {
+						itemQuantities.put(parts[0].trim(), Integer.parseInt(parts[1].trim()));
+					}
+				}
+			}
+		}
+
+		return new PlayerAssetsState(balance, unlockedIds, itemQuantities);
+	}
+
 }
