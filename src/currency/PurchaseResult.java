@@ -1,0 +1,10 @@
+package currency;
+
+public enum PurchaseResult {
+    SUCCESS,
+    INVALID_ITEM_ID,
+    ITEM_NOT_AVAILABLE,
+    INVALID_QUANTITY,
+    INTEGER_OVERFLOW_DETECTED,
+    INSUFFICIENT_FUNDS
+}
