@@ -31,11 +31,18 @@ public class PurchaseSystem {
             return PurchaseResult.INSUFFICIENT_FUNDS;
         }
 
+        // Pre-validate inventory capacity before deducting currency
+        int currentQuantity = assets.getItemQuantity(itemId);
+        if (Integer.MAX_VALUE - currentQuantity < quantity) {
+            return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
+        }
+
+        // Deduct currency only after all validations pass
         if (!assets.deductCurrency(totalCost)) {
             return PurchaseResult.INSUFFICIENT_FUNDS;
         }
 
-        // Attempt to grant the item. If it fails (e.g., overflow), rollback the balance.
+        // Defensive fallback: attempt to grant the item. Rollback if unexpected failure occurs.
         if (!assets.addItem(itemId, quantity)) {
             assets.addCurrency(totalCost); 
             return PurchaseResult.INTEGER_OVERFLOW_DETECTED; 
