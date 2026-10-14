@@ -22,6 +22,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 
 import engine.DrawManager.SpriteType;
 
@@ -39,9 +43,6 @@ public final class FileManager {
 	private static Logger logger;
 	/** Max number of high scores. */
 	private static final int MAX_SCORES = 7;
-
-	/**Default save file path.*/
-	private static final String ASSETS_SAVE_PATH = "res/player_assets.properties";
 
 	/**
 	 * private constructor.
@@ -88,10 +89,7 @@ public final class FileManager {
 							c = (char) inputStream.read();
 						while (c != '0' && c != '1');
 
-						if (c == '1')
-							sprite.getValue()[i][j] = true;
-						else
-							sprite.getValue()[i][j] = false;
+                        sprite.getValue()[i][j] = c == '1';
 					}
 				logger.fine("Sprite " + sprite.getKey() + " loaded.");
 			}
@@ -274,83 +272,215 @@ public final class FileManager {
 		}
 	}
 
+	public static final String DEFAULT_ASSETS_SAVE_PATH = "res/player_assets.properties";
+	private static final String FORMAT_VERSION = "1";
+
+	private Path assetsSavePath = Paths.get(DEFAULT_ASSETS_SAVE_PATH);
+
 	/**
-	 * Saves the current PlayerAssetsState snapshot to persistent storage.
+	 * Sets a custom save path for player assets (used for isolated testing).
 	 *
-	 * @param state the PlayerAssetsState snapshot to save
-	 * @throws IOException if an I/O error occurs during writing
+	 * @param path custom destination path
 	 */
-	public void savePlayerAssets(PlayerAssetsState state) throws IOException {
+	public void setAssetsSavePath(final Path path) {
+		if (path == null) {
+			throw new IllegalArgumentException("Save path cannot be null.");
+		}
+		this.assetsSavePath = path;
+	}
+
+	/**
+	 * Resets the asset save path back to the default production location.
+	 */
+	public void resetAssetsSavePath() {
+		this.assetsSavePath = Paths.get(DEFAULT_ASSETS_SAVE_PATH);
+	}
+
+	public Path getAssetsSavePath() {
+		return this.assetsSavePath;
+	}
+
+	/**
+	 * Saves the player asset state to the configured save path.
+	 */
+	public void savePlayerAssets(final PlayerAssetsState state) throws IOException {
+		savePlayerAssets(state, this.assetsSavePath);
+	}
+
+	/**
+	 * Saves the player asset state using atomic replacement to preserve existing saves upon failure.
+	 *
+	 * @param state      the player assets state to save
+	 * @param targetPath destination file path
+	 * @throws IOException if saving fails
+	 */
+	public void savePlayerAssets(final PlayerAssetsState state, final Path targetPath) throws IOException {
 		if (state == null) {
 			throw new IllegalArgumentException("PlayerAssetsState cannot be null.");
 		}
+		Path target = (targetPath != null) ? targetPath : this.assetsSavePath;
 
 		Properties properties = new Properties();
+		properties.setProperty("version", FORMAT_VERSION);
 		properties.setProperty("balance", String.valueOf(state.getBalance()));
 
-		// Serialize unlocked content IDs
-		properties.setProperty("unlockedContentIds", String.join(",", state.getUnlockedContentIds()));
+		// Lossless URL encoding to preserve commas, colons, semicolons, and whitespace
+		List<String> encodedUnlocks = new ArrayList<>();
+		for (String id : state.getUnlockedContentIds()) {
+			encodedUnlocks.add(URLEncoder.encode(id, StandardCharsets.UTF_8));
+		}
+		properties.setProperty("unlockedContentIds", String.join(",", encodedUnlocks));
 
-		// Serialize item quantities (id:qty;)
-		StringBuilder itemsSb = new StringBuilder();
-		state.getItemQuantities().forEach((id, qty) -> itemsSb.append(id).append(":").append(qty).append(";"));
-		properties.setProperty("itemQuantities", itemsSb.toString());
+		List<String> encodedItems = new ArrayList<>();
+		for (Map.Entry<String, Integer> entry : state.getItemQuantities().entrySet()) {
+			String encodedId = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8);
+			encodedItems.add(encodedId + ":" + entry.getValue());
+		}
+		properties.setProperty("itemQuantities", String.join(",", encodedItems));
 
-		Path path = Paths.get(ASSETS_SAVE_PATH);
-		if (path.getParent() != null) {
-			Files.createDirectories(path.getParent());
+		Path parent = target.toAbsolutePath().getParent();
+		if (parent != null) {
+			Files.createDirectories(parent);
 		}
 
-		try (OutputStream os = Files.newOutputStream(path)) {
-			properties.store(os, "Player Assets Save Data");
-			logger.info("Successfully saved player assets state to " + ASSETS_SAVE_PATH);
+		// Write to temporary file first so failed saves do not truncate or corrupt the valid save
+		Path tempFile = Files.createTempFile(parent != null ? parent : Paths.get("."), "player_assets_", ".tmp");
+		try {
+			try (OutputStream os = Files.newOutputStream(tempFile)) {
+				properties.store(os, "Player Assets Save Data");
+			}
+
+			try {
+				Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			} catch (AtomicMoveNotSupportedException e) {
+				Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
+			}
+			logger.info("Successfully saved player assets state to " + target);
+		} finally {
+			Files.deleteIfExists(tempFile);
 		}
 	}
 
 	/**
-	 * Loads the PlayerAssetsState snapshot from persistent storage.
-	 *
-	 * @return the loaded or default PlayerAssetsState snapshot
-	 * @throws IOException if an I/O error occurs during reading
+	 * Loads the player asset state from the configured save path.
 	 */
 	public PlayerAssetsState loadPlayerAssets() throws IOException {
-		Path path = Paths.get(ASSETS_SAVE_PATH);
-		if (!Files.exists(path)) {
-			logger.info("Save file not found at " + ASSETS_SAVE_PATH + ". Returning default initial state.");
+		return loadPlayerAssets(this.assetsSavePath);
+	}
+
+	/**
+	 * Loads the player asset state from a specific path with strict validation.
+	 *
+	 * @param sourcePath file path to load from
+	 * @return the loaded PlayerAssetsState, or default empty state if file does not exist
+	 * @throws IOException if the file exists but is corrupted, empty, or malformed
+	 */
+	public PlayerAssetsState loadPlayerAssets(final Path sourcePath) throws IOException {
+		Path target = (sourcePath != null) ? sourcePath : this.assetsSavePath;
+
+		// Only a genuinely missing file produces the default state
+		if (!Files.exists(target)) {
+			logger.info("Save file not found at " + target + ". Returning default initial state.");
 			return new PlayerAssetsState(0, Collections.emptySet(), Collections.emptyMap());
 		}
 
 		Properties properties = new Properties();
-		try (InputStream is = Files.newInputStream(path)) {
+		try (InputStream is = Files.newInputStream(target)) {
 			properties.load(is);
+		} catch (IllegalArgumentException e) {
+			throw new IOException("Malformed properties formatting in save file: " + e.getMessage(), e);
 		}
 
-		int balance = Integer.parseInt(properties.getProperty("balance", "0"));
+		// 1. Validate format version
+		String version = properties.getProperty("version");
+		if (version == null) {
+			throw new IOException("Missing required property: 'version'");
+		}
+		if (!FORMAT_VERSION.equals(version.trim())) {
+			throw new IOException("Unsupported format version: '" + version + "'");
+		}
 
-		String unlocksRaw = properties.getProperty("unlockedContentIds", "");
+		// 2. Validate balance
+		String balanceStr = properties.getProperty("balance");
+		if (balanceStr == null) {
+			throw new IOException("Missing required property: 'balance'");
+		}
+		int balance;
+		try {
+			balance = Integer.parseInt(balanceStr.trim());
+		} catch (NumberFormatException e) {
+			throw new IOException("Malformed numeric balance: '" + balanceStr + "'", e);
+		}
+		if (balance < 0) {
+			throw new IOException("Balance cannot be negative: " + balance);
+		}
+
+		// 3. Validate unlockedContentIds
+		String unlocksRaw = properties.getProperty("unlockedContentIds");
+		if (unlocksRaw == null) {
+			throw new IOException("Missing required property: 'unlockedContentIds'");
+		}
 		Set<String> unlockedIds = new HashSet<>();
-		if (!unlocksRaw.trim().isEmpty()) {
-			for (String id : unlocksRaw.split(",")) {
-				if (!id.trim().isEmpty()) {
-					unlockedIds.add(id.trim());
+		if (!unlocksRaw.isEmpty()) {
+			String[] tokens = unlocksRaw.split(",", -1);
+			for (String token : tokens) {
+				if (token.isEmpty()) {
+					throw new IOException("Malformed unlockedContentIds: contains empty identifier token");
+				}
+				String decodedId = URLDecoder.decode(token, StandardCharsets.UTF_8);
+				if (decodedId.trim().isEmpty()) {
+					throw new IOException("Malformed unlocked content ID: cannot be blank");
+				}
+				if (!unlockedIds.add(decodedId)) {
+					throw new IOException("Duplicate unlocked content ID found: " + decodedId);
 				}
 			}
 		}
 
-		String itemsRaw = properties.getProperty("itemQuantities", "");
+		// 4. Validate itemQuantities
+		String itemsRaw = properties.getProperty("itemQuantities");
+		if (itemsRaw == null) {
+			throw new IOException("Missing required property: 'itemQuantities'");
+		}
 		Map<String, Integer> itemQuantities = new HashMap<>();
-		if (!itemsRaw.trim().isEmpty()) {
-			for (String pair : itemsRaw.split(";")) {
-				if (!pair.trim().isEmpty() && pair.contains(":")) {
-					String[] parts = pair.split(":");
-					if (parts.length == 2) {
-						itemQuantities.put(parts[0].trim(), Integer.parseInt(parts[1].trim()));
-					}
+		if (!itemsRaw.isEmpty()) {
+			String[] entries = itemsRaw.split(",", -1);
+			for (String entry : entries) {
+				if (entry.isEmpty()) {
+					throw new IOException("Malformed itemQuantities: contains empty item entry");
+				}
+				int colonIdx = entry.indexOf(':');
+				if (colonIdx <= 0 || colonIdx == entry.length() - 1) {
+					throw new IOException("Malformed item entry (expected encodedId:quantity): '" + entry + "'");
+				}
+				String rawId = entry.substring(0, colonIdx);
+				String rawQty = entry.substring(colonIdx + 1);
+
+				String decodedId = URLDecoder.decode(rawId, StandardCharsets.UTF_8);
+				if (decodedId.trim().isEmpty()) {
+					throw new IOException("Malformed item ID: cannot be blank in entry '" + entry + "'");
+				}
+				int quantity;
+				try {
+					quantity = Integer.parseInt(rawQty.trim());
+				} catch (NumberFormatException e) {
+					throw new IOException("Malformed numeric item quantity in entry: '" + entry + "'", e);
+				}
+				if (quantity <= 0) {
+					throw new IOException("Item quantity must be greater than 0: " + quantity);
+				}
+				if (itemQuantities.put(decodedId, quantity) != null) {
+					throw new IOException("Duplicate item ID found in itemQuantities: " + decodedId);
 				}
 			}
 		}
 
-		return new PlayerAssetsState(balance, unlockedIds, itemQuantities);
+		try {
+			return new PlayerAssetsState(balance, unlockedIds, itemQuantities);
+		} catch (IllegalArgumentException e) {
+			throw new IOException("Invalid asset state invariant: " + e.getMessage(), e);
+		}
 	}
+
 
 }
