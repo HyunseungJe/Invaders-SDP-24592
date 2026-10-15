@@ -1,5 +1,7 @@
 package currency;
 
+import engine.GameplayConfig;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,12 +86,21 @@ public class RewardSystem {
     }
 
     public boolean rewardLevel(int difficulty) {
-        if (difficulty <= 0) {
-            return false;
-        }
+        final long calculatedReward;
 
-        long calculatedReward =
-            (long) baseLevelReward * difficulty;
+        switch (difficulty) {
+            case GameplayConfig.EASY:
+                calculatedReward = Math.max(1L, baseLevelReward / 2L);
+                break;
+            case GameplayConfig.NORMAL:
+                calculatedReward = baseLevelReward;
+                break;
+            case GameplayConfig.HARD:
+                calculatedReward = (long) baseLevelReward * 2;
+                break;
+            default:
+                return false;
+        }
 
         if (calculatedReward > Integer.MAX_VALUE) {
             return false;
