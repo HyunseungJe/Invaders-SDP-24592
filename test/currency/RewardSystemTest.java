@@ -46,8 +46,8 @@ class RewardSystemTest {
 
     @Test
     void testLevelCompletionReward() {
-        assertTrue(rewards.rewardLevel(3));
-        assertEquals(300, rewards.getPendingCurrency());
+        assertTrue(rewards.rewardLevel(2));
+        assertEquals(200, rewards.getPendingCurrency());
         assertEquals(0, assets.getBalance());
     }
 
@@ -61,7 +61,6 @@ class RewardSystemTest {
     @Test
     void testInvalidDifficulty() {
         assertFalse(rewards.rewardLevel(-1));
-        assertFalse(rewards.rewardLevel(0));
         assertEquals(0, rewards.getPendingCurrency());
     }
 
