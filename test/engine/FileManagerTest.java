@@ -1,6 +1,7 @@
 package engine;
 
 import currency.PlayerAssetsState;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,24 @@ class FileManagerTest {
         fileManager = FileManager.getInstance();
         savePath = tempDir.resolve("player_assets.properties");
         fileManager.setAssetsSavePath(savePath);
+    }
+
+    @AfterEach
+    void tearDown() {
+        fileManager.resetAssetsSavePath();
+    }
+
+    @Test
+    @DisplayName("Default player assets save path shares directory with scores file")
+    void testDefaultAssetPathSharesDirectoryWithScores() {
+        Path defaultAssetPath = FileManager.resolveStoragePath(FileManager.ASSETS_FILENAME);
+        Path scoresPath = FileManager.resolveStoragePath("scores");
+
+        assertEquals(scoresPath.getParent(), defaultAssetPath.getParent());
+        assertEquals("player_assets.properties", defaultAssetPath.getFileName().toString());
+
+        fileManager.resetAssetsSavePath();
+        assertEquals(defaultAssetPath, fileManager.getAssetsSavePath());
     }
 
     @Test
@@ -84,10 +103,8 @@ class FileManagerTest {
                 dirFile.setWritable(false);
             }
 
-            // Attempting to save should fail during temporary file creation or write I/O
             assertThrows(IOException.class, () -> fileManager.savePlayerAssets(nextState, targetFile));
 
-            // Verify original file remained intact and unmodified
             assertEquals(originalContent, Files.readString(targetFile));
             PlayerAssetsState reloaded = fileManager.loadPlayerAssets(targetFile);
             assertEquals(350, reloaded.getBalance());
@@ -123,3 +140,4 @@ class FileManagerTest {
         assertEquals(items, loaded.getItemQuantities());
     }
 }
+

@@ -60,6 +60,30 @@ public final class FileManager {
 	}
 
 	/**
+	 * Resolves a file path relative to the application's code/JAR execution directory.
+	 *
+	 * @param filename file name to resolve
+	 * @return Path pointing to the file in the application storage directory
+	 */
+	static Path resolveStoragePath(final String filename) {
+		try {
+			String jarPath = FileManager.class.getProtectionDomain()
+					.getCodeSource().getLocation().getPath();
+			jarPath = URLDecoder.decode(jarPath, StandardCharsets.UTF_8);
+
+			String parent = new File(jarPath).getParent();
+			if (parent != null) {
+				return Paths.get(parent, filename);
+			}
+		} catch (Exception e) {
+			if (logger != null) {
+				logger.warning("Failed to resolve application directory: " + e.getMessage());
+			}
+		}
+		return Paths.get(filename);
+	}
+
+	/**
 	 * Loads sprites from disk.
 	 *
 	 * @param spriteMap
@@ -179,15 +203,7 @@ public final class FileManager {
 		BufferedReader bufferedReader = null;
 
 		try {
-			String jarPath = FileManager.class.getProtectionDomain()
-					.getCodeSource().getLocation().getPath();
-			jarPath = URLDecoder.decode(jarPath, "UTF-8");
-
-			String scoresPath = new File(jarPath).getParent();
-			scoresPath += File.separator;
-			scoresPath += "scores";
-
-			File scoresFile = new File(scoresPath);
+			File scoresFile = resolveStoragePath("scores").toFile();
 			inputStream = new FileInputStream(scoresFile);
 			bufferedReader = new BufferedReader(new InputStreamReader(
 					inputStream, Charset.forName("UTF-8")));
@@ -232,15 +248,7 @@ public final class FileManager {
 		BufferedWriter bufferedWriter = null;
 
 		try {
-			String jarPath = FileManager.class.getProtectionDomain()
-					.getCodeSource().getLocation().getPath();
-			jarPath = URLDecoder.decode(jarPath, "UTF-8");
-
-			String scoresPath = new File(jarPath).getParent();
-			scoresPath += File.separator;
-			scoresPath += "scores";
-
-			File scoresFile = new File(scoresPath);
+			File scoresFile = resolveStoragePath("scores").toFile();
 
 			if (!scoresFile.exists())
 				scoresFile.createNewFile();
@@ -269,10 +277,11 @@ public final class FileManager {
 		}
 	}
 
-	public static final String DEFAULT_ASSETS_SAVE_PATH = "res/player_assets.properties";
+	public static final String ASSETS_FILENAME = "player_assets.properties";
+	public static final String DEFAULT_ASSETS_SAVE_PATH = ASSETS_FILENAME;
 	private static final String FORMAT_VERSION = "1";
 
-	private Path assetsSavePath = Paths.get(DEFAULT_ASSETS_SAVE_PATH);
+	private Path assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
 
 	/**
 	 * Sets a custom save path for player assets (used for isolated testing).
@@ -290,7 +299,7 @@ public final class FileManager {
 	 * Resets the asset save path back to the default production location.
 	 */
 	public void resetAssetsSavePath() {
-		this.assetsSavePath = Paths.get(DEFAULT_ASSETS_SAVE_PATH);
+		this.assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
 	}
 
 	public Path getAssetsSavePath() {
