@@ -45,7 +45,7 @@ public class RewardSystem {
     }
 
     public boolean setEnemyReward(String enemyType, int amount) {
-        if (enemyType == null || enemyType.isBlank() || amount <= 0) {
+        if (enemyType == null || enemyType.trim().isEmpty() || amount <= 0) {
             return false;
         }
 
@@ -58,7 +58,8 @@ public class RewardSystem {
             return 0;
         }
 
-        return enemyRewards.getOrDefault(enemyType, 0);
+        Integer reward = enemyRewards.get(enemyType);
+        return reward != null ? reward : 0;
     }
 
     public boolean rewardEnemy(String enemyType) {

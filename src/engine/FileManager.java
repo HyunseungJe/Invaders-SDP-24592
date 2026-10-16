@@ -67,13 +67,12 @@ public final class FileManager {
 	 */
 	static Path resolveStoragePath(final String filename) {
 		try {
-			String jarPath = FileManager.class.getProtectionDomain()
-					.getCodeSource().getLocation().getPath();
-			jarPath = URLDecoder.decode(jarPath, StandardCharsets.UTF_8);
+			Path codePath = Paths.get(FileManager.class.getProtectionDomain()
+					.getCodeSource().getLocation().toURI());
 
-			String parent = new File(jarPath).getParent();
+			Path parent = codePath.getParent();
 			if (parent != null) {
-				return Paths.get(parent, filename);
+				return parent.resolve(filename);
 			}
 		} catch (Exception e) {
 			if (logger != null) {
@@ -331,18 +330,24 @@ public final class FileManager {
 		properties.setProperty("balance", String.valueOf(state.getBalance()));
 
 		// Lossless URL encoding to preserve commas, colons, semicolons, and whitespace
-		List<String> encodedUnlocks = new ArrayList<>();
+		StringBuilder encodedUnlocks = new StringBuilder();
 		for (String id : state.getUnlockedContentIds()) {
-			encodedUnlocks.add(URLEncoder.encode(id, StandardCharsets.UTF_8));
+			if (encodedUnlocks.length() > 0) {
+				encodedUnlocks.append(',');
+			}
+			encodedUnlocks.append(URLEncoder.encode(id, StandardCharsets.UTF_8.name()));
 		}
-		properties.setProperty("unlockedContentIds", String.join(",", encodedUnlocks));
+		properties.setProperty("unlockedContentIds", encodedUnlocks.toString());
 
-		List<String> encodedItems = new ArrayList<>();
+		StringBuilder encodedItems = new StringBuilder();
 		for (Map.Entry<String, Integer> entry : state.getItemQuantities().entrySet()) {
-			String encodedId = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8);
-			encodedItems.add(encodedId + ":" + entry.getValue());
+			if (encodedItems.length() > 0) {
+				encodedItems.append(',');
+			}
+			String encodedId = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8.name());
+			encodedItems.append(encodedId).append(':').append(entry.getValue());
 		}
-		properties.setProperty("itemQuantities", String.join(",", encodedItems));
+		properties.setProperty("itemQuantities", encodedItems.toString());
 
 		Path parent = target.toAbsolutePath().getParent();
 		if (parent != null) {
@@ -388,7 +393,8 @@ public final class FileManager {
 		// Only a genuinely missing file produces the default state
 		if (!Files.exists(target)) {
 			logger.info("Save file not found at " + target + ". Returning default initial state.");
-			return new PlayerAssetsState(0, Collections.emptySet(), Collections.emptyMap());
+			return new PlayerAssetsState(0, Collections.<String>emptySet(),
+					Collections.<String, Integer>emptyMap());
 		}
 
 		Properties properties = new Properties();
@@ -436,7 +442,7 @@ public final class FileManager {
 				}
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(token, StandardCharsets.UTF_8);
+					decodedId = URLDecoder.decode(token, StandardCharsets.UTF_8.name());
 				} catch (IllegalArgumentException e) {
 					throw new IOException("Malformed URL-encoded unlocked content ID: '" + token + "'", e);
 				}
@@ -470,7 +476,7 @@ public final class FileManager {
 
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(rawId, StandardCharsets.UTF_8);
+					decodedId = URLDecoder.decode(rawId, StandardCharsets.UTF_8.name());
 				} catch (IllegalArgumentException e) {
 					throw new IOException("Malformed URL-encoded item ID: '" + rawId + "' in entry '" + entry + "'", e);
 				}
