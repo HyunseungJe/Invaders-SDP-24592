@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,6 +61,54 @@ class FileManagerTest {
 
         IOException ex = assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
         assertTrue(ex.getMessage().contains("Malformed URL-encoded item ID"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%FF", "%C3%28", "%E3%81", "%80", "%C0%AF",
+            "%ED%A0%80", "%ED%B0%80", "%ED%A0%BD%ED%BA%80", "%F4%90%80%80",
+            "%F0%9F%9A", "%C3X%A9", "%E3+%81%82"})
+    @DisplayName("loadPlayerAssets rejects invalid UTF-8 in unlocked content IDs without modifying the save")
+    void testLoadInvalidUtf8UnlockIdThrowsIOException(String encodedId) throws IOException {
+        String data = "version=1\nbalance=100\nunlockedContentIds=SHIP" + encodedId
+                + "\nitemQuantities=ITEM_A:1\n";
+        Files.writeString(savePath, data);
+        byte[] original = Files.readAllBytes(savePath);
+
+        IOException ex = assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
+
+        assertTrue(ex.getMessage().contains("Malformed URL-encoded unlocked content ID"));
+        assertArrayEquals(original, Files.readAllBytes(savePath));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%FF", "%C3%28", "%E3%81", "%80", "%C0%AF",
+            "%ED%A0%80", "%ED%B0%80", "%ED%A0%BD%ED%BA%80", "%F4%90%80%80",
+            "%F0%9F%9A", "%C3X%A9", "%E3+%81%82"})
+    @DisplayName("loadPlayerAssets rejects invalid UTF-8 in inventory IDs without modifying the save")
+    void testLoadInvalidUtf8InventoryIdThrowsIOException(String encodedId) throws IOException {
+        String data = "version=1\nbalance=100\nunlockedContentIds=VALID_SHIP\nitemQuantities=ITEM"
+                + encodedId + ":3\n";
+        Files.writeString(savePath, data);
+        byte[] original = Files.readAllBytes(savePath);
+
+        IOException ex = assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
+
+        assertTrue(ex.getMessage().contains("Malformed URL-encoded item ID"));
+        assertArrayEquals(original, Files.readAllBytes(savePath));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SHIP한글🚀", "SHIP\uFFFD", "SHIP+ %,:;/", "SHIP%FF"})
+    @DisplayName("Valid Unicode and escaped characters round-trip in both asset ID fields")
+    void testValidUtf8AssetIdsRoundTrip(String id) throws IOException {
+        PlayerAssetsState original = new PlayerAssetsState(100, Set.of(id), Map.of(id, 3));
+
+        fileManager.savePlayerAssets(original, savePath);
+        PlayerAssetsState loaded = fileManager.loadPlayerAssets(savePath);
+
+        assertEquals(original.getBalance(), loaded.getBalance());
+        assertEquals(original.getUnlockedContentIds(), loaded.getUnlockedContentIds());
+        assertEquals(original.getItemQuantities(), loaded.getItemQuantities());
     }
 
     @Test

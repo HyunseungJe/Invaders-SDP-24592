@@ -15,9 +15,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -355,6 +358,48 @@ public final class FileManager {
 		return loadPlayerAssets(resolveStoragePath(ASSETS_FILENAME));
 	}
 
+	/** Decodes form-encoded IDs, rejecting malformed UTF-8 instead of replacing it. */
+	private static String decodeAssetId(final String encodedId) throws CharacterCodingException {
+		StringBuilder decoded = new StringBuilder();
+		byte[] bytes = null;
+		int index = 0;
+		while (index < encodedId.length()) {
+			char current = encodedId.charAt(index);
+			if (current == '%') {
+				if (bytes == null) {
+					bytes = new byte[encodedId.length() / 3];
+				}
+				int count = 0;
+				while (index < encodedId.length() && encodedId.charAt(index) == '%') {
+					if (index + 2 >= encodedId.length()) {
+						throw new IllegalArgumentException("Incomplete percent escape in asset ID.");
+					}
+					int high = Character.digit(encodedId.charAt(index + 1), 16);
+					int low = Character.digit(encodedId.charAt(index + 2), 16);
+					if (high < 0 || low < 0) {
+						throw new IllegalArgumentException("Invalid percent escape in asset ID.");
+					}
+					int value = (high << 4) | low;
+					// Java 7's UTF-8 decoder also accepts encoded surrogate code points.
+					if (count > 0 && bytes[count - 1] == (byte) 0xED
+							&& value >= 0xA0 && value <= 0xBF) {
+						throw new MalformedInputException(2);
+					}
+					bytes[count++] = (byte) value;
+					index += 3;
+				}
+				decoded.append(StandardCharsets.UTF_8.newDecoder()
+						.onMalformedInput(CodingErrorAction.REPORT)
+						.onUnmappableCharacter(CodingErrorAction.REPORT)
+						.decode(ByteBuffer.wrap(bytes, 0, count)));
+			} else {
+				decoded.append(current == '+' ? ' ' : current);
+				index++;
+			}
+		}
+		return decoded.toString();
+	}
+
 	/**
 	 * Loads the player asset state from a specific path with strict validation.
 	 *
@@ -417,8 +462,8 @@ public final class FileManager {
 				}
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(token, StandardCharsets.UTF_8.name());
-				} catch (IllegalArgumentException e) {
+					decodedId = decodeAssetId(token);
+				} catch (IllegalArgumentException | CharacterCodingException e) {
 					throw new IOException("Malformed URL-encoded unlocked content ID: '" + token + "'", e);
 				}
 				if (decodedId.trim().isEmpty()) {
@@ -451,8 +496,8 @@ public final class FileManager {
 
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(rawId, StandardCharsets.UTF_8.name());
-				} catch (IllegalArgumentException e) {
+					decodedId = decodeAssetId(rawId);
+				} catch (IllegalArgumentException | CharacterCodingException e) {
 					throw new IOException("Malformed URL-encoded item ID: '" + rawId + "' in entry '" + entry + "'", e);
 				}
 				if (decodedId.trim().isEmpty()) {
