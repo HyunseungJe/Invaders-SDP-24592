@@ -280,36 +280,11 @@ public final class FileManager {
 	public static final String DEFAULT_ASSETS_SAVE_PATH = ASSETS_FILENAME;
 	private static final String FORMAT_VERSION = "1";
 
-	private Path assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
-
 	/**
-	 * Sets a custom save path for player assets (used for isolated testing).
-	 *
-	 * @param path custom destination path
-	 */
-	public void setAssetsSavePath(final Path path) {
-		if (path == null) {
-			throw new IllegalArgumentException("Save path cannot be null.");
-		}
-		this.assetsSavePath = path;
-	}
-
-	/**
-	 * Resets the asset save path back to the default production location.
-	 */
-	public void resetAssetsSavePath() {
-		this.assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
-	}
-
-	public Path getAssetsSavePath() {
-		return this.assetsSavePath;
-	}
-
-	/**
-	 * Saves the player asset state to the configured save path.
+	 * Saves the player asset state in the same directory as high scores.
 	 */
 	public void savePlayerAssets(final PlayerAssetsState state) throws IOException {
-		savePlayerAssets(state, this.assetsSavePath);
+		savePlayerAssets(state, resolveStoragePath(ASSETS_FILENAME));
 	}
 
 	/**
@@ -323,7 +298,7 @@ public final class FileManager {
 		if (state == null) {
 			throw new IllegalArgumentException("PlayerAssetsState cannot be null.");
 		}
-		Path target = (targetPath != null) ? targetPath : this.assetsSavePath;
+		Path target = (targetPath != null) ? targetPath : resolveStoragePath(ASSETS_FILENAME);
 
 		Properties properties = new Properties();
 		properties.setProperty("version", FORMAT_VERSION);
@@ -374,10 +349,10 @@ public final class FileManager {
 	}
 
 	/**
-	 * Loads the player asset state from the configured save path.
+	 * Loads the player asset state from the same directory as high scores.
 	 */
 	public PlayerAssetsState loadPlayerAssets() throws IOException {
-		return loadPlayerAssets(this.assetsSavePath);
+		return loadPlayerAssets(resolveStoragePath(ASSETS_FILENAME));
 	}
 
 	/**
@@ -388,7 +363,7 @@ public final class FileManager {
 	 * @throws IOException if the file exists but is corrupted, empty, or malformed
 	 */
 	public PlayerAssetsState loadPlayerAssets(final Path sourcePath) throws IOException {
-		Path target = (sourcePath != null) ? sourcePath : this.assetsSavePath;
+		Path target = (sourcePath != null) ? sourcePath : resolveStoragePath(ASSETS_FILENAME);
 
 		// Only a genuinely missing file produces the default state
 		if (!Files.exists(target)) {

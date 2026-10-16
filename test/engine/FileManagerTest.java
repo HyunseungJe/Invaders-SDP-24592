@@ -1,7 +1,6 @@
 package engine;
 
 import currency.PlayerAssetsState;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,12 +29,6 @@ class FileManagerTest {
     void setUp() {
         fileManager = FileManager.getInstance();
         savePath = tempDir.resolve("player_assets.properties");
-        fileManager.setAssetsSavePath(savePath);
-    }
-
-    @AfterEach
-    void tearDown() {
-        fileManager.resetAssetsSavePath();
     }
 
     @Test
@@ -46,9 +39,6 @@ class FileManagerTest {
 
         assertEquals(scoresPath.getParent(), defaultAssetPath.getParent());
         assertEquals("player_assets.properties", defaultAssetPath.getFileName().toString());
-
-        fileManager.resetAssetsSavePath();
-        assertEquals(defaultAssetPath, fileManager.getAssetsSavePath());
     }
 
     @Test
