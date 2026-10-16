@@ -8,16 +8,18 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.DosFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 class FileManagerTest {
 
@@ -125,7 +127,7 @@ class FileManagerTest {
         );
         fileManager.savePlayerAssets(initialValidState, targetFile);
         assertTrue(Files.exists(targetFile));
-        String originalContent = Files.readString(targetFile);
+        byte[] originalContent = Files.readAllBytes(targetFile);
 
         PlayerAssetsState nextState = new PlayerAssetsState(
                 9999,
@@ -133,28 +135,45 @@ class FileManagerTest {
                 Map.of("SHIELD", 100)
         );
 
-        File dirFile = isolatedDir.toFile();
-        boolean posixSupported = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
+        PosixFileAttributeView posixView = Files.getFileAttributeView(isolatedDir, PosixFileAttributeView.class);
+        DosFileAttributeView dosView = Files.getFileAttributeView(targetFile, DosFileAttributeView.class);
+        Set<PosixFilePermission> originalPermissions = null;
+        boolean originallyReadOnly = false;
+
+        if (posixView != null) {
+            originalPermissions = posixView.readAttributes().permissions();
+        } else {
+            assumeTrue(dosView != null, "Filesystem must support POSIX permissions or DOS read-only attributes");
+            originallyReadOnly = dosView.readAttributes().isReadOnly();
+        }
 
         try {
-            if (posixSupported) {
-                Files.setPosixFilePermissions(isolatedDir, PosixFilePermissions.fromString("r-xr-xr-x"));
+            if (posixView != null) {
+                Set<PosixFilePermission> restrictedPermissions = EnumSet.copyOf(originalPermissions);
+                restrictedPermissions.remove(PosixFilePermission.OWNER_WRITE);
+                restrictedPermissions.remove(PosixFilePermission.GROUP_WRITE);
+                restrictedPermissions.remove(PosixFilePermission.OTHERS_WRITE);
+                posixView.setPermissions(restrictedPermissions);
+                assumeFalse(Files.isWritable(isolatedDir), "Process must not bypass directory write permissions");
             } else {
-                dirFile.setWritable(false);
+                // Windows enforces read-only files when replacing the destination, unlike directories.
+                dosView.setReadOnly(true);
+                assertTrue(dosView.readAttributes().isReadOnly());
+                assumeFalse(Files.isWritable(targetFile), "Process must respect the file's read-only attribute");
             }
 
             assertThrows(IOException.class, () -> fileManager.savePlayerAssets(nextState, targetFile));
 
-            assertEquals(originalContent, Files.readString(targetFile));
+            assertArrayEquals(originalContent, Files.readAllBytes(targetFile));
             PlayerAssetsState reloaded = fileManager.loadPlayerAssets(targetFile);
             assertEquals(350, reloaded.getBalance());
             assertTrue(reloaded.getUnlockedContentIds().contains("SHIP_ORIGINAL"));
             assertEquals(2, reloaded.getItemQuantities().get("SHIELD"));
         } finally {
-            if (posixSupported) {
-                Files.setPosixFilePermissions(isolatedDir, PosixFilePermissions.fromString("rwxr-xr-x"));
+            if (posixView != null) {
+                posixView.setPermissions(originalPermissions);
             } else {
-                dirFile.setWritable(true);
+                dosView.setReadOnly(originallyReadOnly);
             }
         }
     }
