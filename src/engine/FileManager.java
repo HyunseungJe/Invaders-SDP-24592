@@ -15,9 +15,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -67,13 +70,12 @@ public final class FileManager {
 	 */
 	static Path resolveStoragePath(final String filename) {
 		try {
-			String jarPath = FileManager.class.getProtectionDomain()
-					.getCodeSource().getLocation().getPath();
-			jarPath = URLDecoder.decode(jarPath, StandardCharsets.UTF_8);
+			Path codePath = Paths.get(FileManager.class.getProtectionDomain()
+					.getCodeSource().getLocation().toURI());
 
-			String parent = new File(jarPath).getParent();
+			Path parent = codePath.getParent();
 			if (parent != null) {
-				return Paths.get(parent, filename);
+				return parent.resolve(filename);
 			}
 		} catch (Exception e) {
 			if (logger != null) {
@@ -281,36 +283,11 @@ public final class FileManager {
 	public static final String DEFAULT_ASSETS_SAVE_PATH = ASSETS_FILENAME;
 	private static final String FORMAT_VERSION = "1";
 
-	private Path assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
-
 	/**
-	 * Sets a custom save path for player assets (used for isolated testing).
-	 *
-	 * @param path custom destination path
-	 */
-	public void setAssetsSavePath(final Path path) {
-		if (path == null) {
-			throw new IllegalArgumentException("Save path cannot be null.");
-		}
-		this.assetsSavePath = path;
-	}
-
-	/**
-	 * Resets the asset save path back to the default production location.
-	 */
-	public void resetAssetsSavePath() {
-		this.assetsSavePath = resolveStoragePath(ASSETS_FILENAME);
-	}
-
-	public Path getAssetsSavePath() {
-		return this.assetsSavePath;
-	}
-
-	/**
-	 * Saves the player asset state to the configured save path.
+	 * Saves the player asset state in the same directory as high scores.
 	 */
 	public void savePlayerAssets(final PlayerAssetsState state) throws IOException {
-		savePlayerAssets(state, this.assetsSavePath);
+		savePlayerAssets(state, resolveStoragePath(ASSETS_FILENAME));
 	}
 
 	/**
@@ -324,25 +301,31 @@ public final class FileManager {
 		if (state == null) {
 			throw new IllegalArgumentException("PlayerAssetsState cannot be null.");
 		}
-		Path target = (targetPath != null) ? targetPath : this.assetsSavePath;
+		Path target = (targetPath != null) ? targetPath : resolveStoragePath(ASSETS_FILENAME);
 
 		Properties properties = new Properties();
 		properties.setProperty("version", FORMAT_VERSION);
 		properties.setProperty("balance", String.valueOf(state.getBalance()));
 
 		// Lossless URL encoding to preserve commas, colons, semicolons, and whitespace
-		List<String> encodedUnlocks = new ArrayList<>();
+		StringBuilder encodedUnlocks = new StringBuilder();
 		for (String id : state.getUnlockedContentIds()) {
-			encodedUnlocks.add(URLEncoder.encode(id, StandardCharsets.UTF_8));
+			if (encodedUnlocks.length() > 0) {
+				encodedUnlocks.append(',');
+			}
+			encodedUnlocks.append(URLEncoder.encode(id, StandardCharsets.UTF_8.name()));
 		}
-		properties.setProperty("unlockedContentIds", String.join(",", encodedUnlocks));
+		properties.setProperty("unlockedContentIds", encodedUnlocks.toString());
 
-		List<String> encodedItems = new ArrayList<>();
+		StringBuilder encodedItems = new StringBuilder();
 		for (Map.Entry<String, Integer> entry : state.getItemQuantities().entrySet()) {
-			String encodedId = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8);
-			encodedItems.add(encodedId + ":" + entry.getValue());
+			if (encodedItems.length() > 0) {
+				encodedItems.append(',');
+			}
+			String encodedId = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8.name());
+			encodedItems.append(encodedId).append(':').append(entry.getValue());
 		}
-		properties.setProperty("itemQuantities", String.join(",", encodedItems));
+		properties.setProperty("itemQuantities", encodedItems.toString());
 
 		Path parent = target.toAbsolutePath().getParent();
 		if (parent != null) {
@@ -369,10 +352,52 @@ public final class FileManager {
 	}
 
 	/**
-	 * Loads the player asset state from the configured save path.
+	 * Loads the player asset state from the same directory as high scores.
 	 */
 	public PlayerAssetsState loadPlayerAssets() throws IOException {
-		return loadPlayerAssets(this.assetsSavePath);
+		return loadPlayerAssets(resolveStoragePath(ASSETS_FILENAME));
+	}
+
+	/** Decodes form-encoded IDs, rejecting malformed UTF-8 instead of replacing it. */
+	private static String decodeAssetId(final String encodedId) throws CharacterCodingException {
+		StringBuilder decoded = new StringBuilder();
+		byte[] bytes = null;
+		int index = 0;
+		while (index < encodedId.length()) {
+			char current = encodedId.charAt(index);
+			if (current == '%') {
+				if (bytes == null) {
+					bytes = new byte[encodedId.length() / 3];
+				}
+				int count = 0;
+				while (index < encodedId.length() && encodedId.charAt(index) == '%') {
+					if (index + 2 >= encodedId.length()) {
+						throw new IllegalArgumentException("Incomplete percent escape in asset ID.");
+					}
+					int high = Character.digit(encodedId.charAt(index + 1), 16);
+					int low = Character.digit(encodedId.charAt(index + 2), 16);
+					if (high < 0 || low < 0) {
+						throw new IllegalArgumentException("Invalid percent escape in asset ID.");
+					}
+					int value = (high << 4) | low;
+					// Java 7's UTF-8 decoder also accepts encoded surrogate code points.
+					if (count > 0 && bytes[count - 1] == (byte) 0xED
+							&& value >= 0xA0 && value <= 0xBF) {
+						throw new MalformedInputException(2);
+					}
+					bytes[count++] = (byte) value;
+					index += 3;
+				}
+				decoded.append(StandardCharsets.UTF_8.newDecoder()
+						.onMalformedInput(CodingErrorAction.REPORT)
+						.onUnmappableCharacter(CodingErrorAction.REPORT)
+						.decode(ByteBuffer.wrap(bytes, 0, count)));
+			} else {
+				decoded.append(current == '+' ? ' ' : current);
+				index++;
+			}
+		}
+		return decoded.toString();
 	}
 
 	/**
@@ -383,12 +408,13 @@ public final class FileManager {
 	 * @throws IOException if the file exists but is corrupted, empty, or malformed
 	 */
 	public PlayerAssetsState loadPlayerAssets(final Path sourcePath) throws IOException {
-		Path target = (sourcePath != null) ? sourcePath : this.assetsSavePath;
+		Path target = (sourcePath != null) ? sourcePath : resolveStoragePath(ASSETS_FILENAME);
 
 		// Only a genuinely missing file produces the default state
 		if (!Files.exists(target)) {
 			logger.info("Save file not found at " + target + ". Returning default initial state.");
-			return new PlayerAssetsState(0, Collections.emptySet(), Collections.emptyMap());
+			return new PlayerAssetsState(0, Collections.<String>emptySet(),
+					Collections.<String, Integer>emptyMap());
 		}
 
 		Properties properties = new Properties();
@@ -436,8 +462,8 @@ public final class FileManager {
 				}
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(token, StandardCharsets.UTF_8);
-				} catch (IllegalArgumentException e) {
+					decodedId = decodeAssetId(token);
+				} catch (IllegalArgumentException | CharacterCodingException e) {
 					throw new IOException("Malformed URL-encoded unlocked content ID: '" + token + "'", e);
 				}
 				if (decodedId.trim().isEmpty()) {
@@ -470,8 +496,8 @@ public final class FileManager {
 
 				String decodedId;
 				try {
-					decodedId = URLDecoder.decode(rawId, StandardCharsets.UTF_8);
-				} catch (IllegalArgumentException e) {
+					decodedId = decodeAssetId(rawId);
+				} catch (IllegalArgumentException | CharacterCodingException e) {
 					throw new IOException("Malformed URL-encoded item ID: '" + rawId + "' in entry '" + entry + "'", e);
 				}
 				if (decodedId.trim().isEmpty()) {

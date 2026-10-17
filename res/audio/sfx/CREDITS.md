@@ -65,3 +65,64 @@ Third-party sound effects used in this project and their licenses.
 - Source: https://freesound.org/people/CasperThePancake/sounds/521939/
 - License: CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
 - Changes: Renamed to countdown_go.wav.
+
+
+## item_pickup.wav
+
+- Original: Created for this project (synthesized 8-bit tone, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+## item_buff_expire.wav
+
+- Original: Created for this project (synthesized fading 8-bit shimmer, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+
+## item_laser_charge.wav
+
+- Original: Created for this project (synthesized rising power-up whine, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+
+## item_laser_beam.wav
+
+- Original: Created for this project (synthesized sustained energy beam, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+
+## item_laser_cancel.wav
+
+- Original: Created for this project (synthesized falling fizzle, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+
+## item_hyperfire_shot.wav
+
+- Original: Created for this project (synthesized short 8-bit zap, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)
+
+
+
+## item_hyperfire_activate.wav
+
+- Original: Created for this project (synthesized overclock rev-up tone, no third-party source)
+- Source: Generated with a Python (NumPy) script, made with AI assistance
+- License: No third-party license; original work for this project
+- Changes: None (16-bit / 44.1kHz mono WAV)

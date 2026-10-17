@@ -16,6 +16,10 @@ public class GameSettings {
 	private int baseSpeed;
 	/** Frequency of enemy shootings, +/- 30%. */
 	private int shootingFrecuency;
+	/** Initial x-coordinate of the enemy formation. */
+	private int initialX;
+	/** Initial y-coordinate of the enemy formation. */
+	private int initialY;
 
 	/**
 	 * Constructor.
@@ -31,10 +35,29 @@ public class GameSettings {
 	 */
 	public GameSettings(final int formationWidth, final int formationHeight,
 			final int baseSpeed, final int shootingFrecuency) {
+		this(formationWidth, formationHeight, baseSpeed, shootingFrecuency,
+				20, 100);
+	}
+
+	/**
+	 * Constructor with an explicit initial formation position.
+	 *
+	 * @param formationWidth Number of columns in the enemy formation.
+	 * @param formationHeight Number of rows in the enemy formation.
+	 * @param baseSpeed Speed of the enemies.
+	 * @param shootingFrecuency Frequency of enemy shootings.
+	 * @param initialX Initial x-coordinate of the formation's upper left corner.
+	 * @param initialY Initial y-coordinate of the formation's upper left corner.
+	 */
+	public GameSettings(final int formationWidth, final int formationHeight,
+			final int baseSpeed, final int shootingFrecuency,
+			final int initialX, final int initialY) {
 		this.formationWidth = formationWidth;
 		this.formationHeight = formationHeight;
 		this.baseSpeed = baseSpeed;
 		this.shootingFrecuency = shootingFrecuency;
+		this.initialX = initialX;
+		this.initialY = initialY;
 	}
 
 	/**
@@ -63,6 +86,20 @@ public class GameSettings {
 	 */
 	public final int getShootingFrecuency() {
 		return shootingFrecuency;
+	}
+
+	/**
+	 * @return the initial x-coordinate of the enemy formation
+	 */
+	public final int getInitialX() {
+		return initialX;
+	}
+
+	/**
+	 * @return the initial y-coordinate of the enemy formation
+	 */
+	public final int getInitialY() {
+		return initialY;
 	}
 
 }

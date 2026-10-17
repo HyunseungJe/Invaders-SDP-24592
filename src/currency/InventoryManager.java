@@ -26,7 +26,8 @@ public class InventoryManager {
         if (isInvalidId(itemId)) {
             return 0;
         }
-        return this.itemQuantities.getOrDefault(itemId, 0);
+        Integer quantity = this.itemQuantities.get(itemId);
+        return quantity != null ? quantity : 0;
     }
 
     public boolean add(String itemId, int quantity) {

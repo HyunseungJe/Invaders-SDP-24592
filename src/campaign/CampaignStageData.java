@@ -17,13 +17,13 @@ public class CampaignStageData {
 
     static {
         campaignSettings = new ArrayList<>();
-        campaignSettings.add(new GameSettings(5, 4, 60, 2000)); // Stage 1
-        campaignSettings.add(new GameSettings(5, 5, 50, 2500)); // Stage 2
-        campaignSettings.add(new GameSettings(6, 5, 40, 1500)); // Stage 3
-        campaignSettings.add(new GameSettings(6, 6, 30, 1500)); // Stage 4
-        campaignSettings.add(new GameSettings(7, 6, 20, 1000)); // Stage 5
-        campaignSettings.add(new GameSettings(7, 7, 10, 1000)); // Stage 6
-        campaignSettings.add(new GameSettings(8, 7, 2, 500));   // Stage 7
+        campaignSettings.add(new GameSettings(5, 4, 60, 2000, 20, 100)); // Stage 1
+        campaignSettings.add(new GameSettings(5, 5, 50, 2500, 60, 100)); // Stage 2
+        campaignSettings.add(new GameSettings(6, 5, 40, 1500, 40, 120)); // Stage 3
+        campaignSettings.add(new GameSettings(6, 6, 30, 1500, 80, 100)); // Stage 4
+        campaignSettings.add(new GameSettings(7, 6, 20, 1000, 40, 120)); // Stage 5
+        campaignSettings.add(new GameSettings(7, 7, 10, 1000, 40, 100)); // Stage 6
+        campaignSettings.add(new GameSettings(8, 7, 2, 500, 20, 100));   // Stage 7
     }
 
     /**

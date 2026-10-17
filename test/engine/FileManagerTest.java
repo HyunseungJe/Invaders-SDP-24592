@@ -1,22 +1,25 @@
 package engine;
 
 import currency.PlayerAssetsState;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.DosFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 class FileManagerTest {
 
@@ -30,12 +33,6 @@ class FileManagerTest {
     void setUp() {
         fileManager = FileManager.getInstance();
         savePath = tempDir.resolve("player_assets.properties");
-        fileManager.setAssetsSavePath(savePath);
-    }
-
-    @AfterEach
-    void tearDown() {
-        fileManager.resetAssetsSavePath();
     }
 
     @Test
@@ -46,9 +43,6 @@ class FileManagerTest {
 
         assertEquals(scoresPath.getParent(), defaultAssetPath.getParent());
         assertEquals("player_assets.properties", defaultAssetPath.getFileName().toString());
-
-        fileManager.resetAssetsSavePath();
-        assertEquals(defaultAssetPath, fileManager.getAssetsSavePath());
     }
 
     @Test
@@ -71,6 +65,54 @@ class FileManagerTest {
         assertTrue(ex.getMessage().contains("Malformed URL-encoded item ID"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"%FF", "%C3%28", "%E3%81", "%80", "%C0%AF",
+            "%ED%A0%80", "%ED%B0%80", "%ED%A0%BD%ED%BA%80", "%F4%90%80%80",
+            "%F0%9F%9A", "%C3X%A9", "%E3+%81%82"})
+    @DisplayName("loadPlayerAssets rejects invalid UTF-8 in unlocked content IDs without modifying the save")
+    void testLoadInvalidUtf8UnlockIdThrowsIOException(String encodedId) throws IOException {
+        String data = "version=1\nbalance=100\nunlockedContentIds=SHIP" + encodedId
+                + "\nitemQuantities=ITEM_A:1\n";
+        Files.writeString(savePath, data);
+        byte[] original = Files.readAllBytes(savePath);
+
+        IOException ex = assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
+
+        assertTrue(ex.getMessage().contains("Malformed URL-encoded unlocked content ID"));
+        assertArrayEquals(original, Files.readAllBytes(savePath));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%FF", "%C3%28", "%E3%81", "%80", "%C0%AF",
+            "%ED%A0%80", "%ED%B0%80", "%ED%A0%BD%ED%BA%80", "%F4%90%80%80",
+            "%F0%9F%9A", "%C3X%A9", "%E3+%81%82"})
+    @DisplayName("loadPlayerAssets rejects invalid UTF-8 in inventory IDs without modifying the save")
+    void testLoadInvalidUtf8InventoryIdThrowsIOException(String encodedId) throws IOException {
+        String data = "version=1\nbalance=100\nunlockedContentIds=VALID_SHIP\nitemQuantities=ITEM"
+                + encodedId + ":3\n";
+        Files.writeString(savePath, data);
+        byte[] original = Files.readAllBytes(savePath);
+
+        IOException ex = assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
+
+        assertTrue(ex.getMessage().contains("Malformed URL-encoded item ID"));
+        assertArrayEquals(original, Files.readAllBytes(savePath));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SHIP한글🚀", "SHIP\uFFFD", "SHIP+ %,:;/", "SHIP%FF"})
+    @DisplayName("Valid Unicode and escaped characters round-trip in both asset ID fields")
+    void testValidUtf8AssetIdsRoundTrip(String id) throws IOException {
+        PlayerAssetsState original = new PlayerAssetsState(100, Set.of(id), Map.of(id, 3));
+
+        fileManager.savePlayerAssets(original, savePath);
+        PlayerAssetsState loaded = fileManager.loadPlayerAssets(savePath);
+
+        assertEquals(original.getBalance(), loaded.getBalance());
+        assertEquals(original.getUnlockedContentIds(), loaded.getUnlockedContentIds());
+        assertEquals(original.getItemQuantities(), loaded.getItemQuantities());
+    }
+
     @Test
     @DisplayName("savePlayerAssets write failure preserves preexisting valid save file")
     void testFailedSavePreservesPreviousValidFile() throws IOException {
@@ -85,7 +127,7 @@ class FileManagerTest {
         );
         fileManager.savePlayerAssets(initialValidState, targetFile);
         assertTrue(Files.exists(targetFile));
-        String originalContent = Files.readString(targetFile);
+        byte[] originalContent = Files.readAllBytes(targetFile);
 
         PlayerAssetsState nextState = new PlayerAssetsState(
                 9999,
@@ -93,28 +135,45 @@ class FileManagerTest {
                 Map.of("SHIELD", 100)
         );
 
-        File dirFile = isolatedDir.toFile();
-        boolean posixSupported = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
+        PosixFileAttributeView posixView = Files.getFileAttributeView(isolatedDir, PosixFileAttributeView.class);
+        DosFileAttributeView dosView = Files.getFileAttributeView(targetFile, DosFileAttributeView.class);
+        Set<PosixFilePermission> originalPermissions = null;
+        boolean originallyReadOnly = false;
+
+        if (posixView != null) {
+            originalPermissions = posixView.readAttributes().permissions();
+        } else {
+            assumeTrue(dosView != null, "Filesystem must support POSIX permissions or DOS read-only attributes");
+            originallyReadOnly = dosView.readAttributes().isReadOnly();
+        }
 
         try {
-            if (posixSupported) {
-                Files.setPosixFilePermissions(isolatedDir, PosixFilePermissions.fromString("r-xr-xr-x"));
+            if (posixView != null) {
+                Set<PosixFilePermission> restrictedPermissions = EnumSet.copyOf(originalPermissions);
+                restrictedPermissions.remove(PosixFilePermission.OWNER_WRITE);
+                restrictedPermissions.remove(PosixFilePermission.GROUP_WRITE);
+                restrictedPermissions.remove(PosixFilePermission.OTHERS_WRITE);
+                posixView.setPermissions(restrictedPermissions);
+                assumeFalse(Files.isWritable(isolatedDir), "Process must not bypass directory write permissions");
             } else {
-                dirFile.setWritable(false);
+                // Windows enforces read-only files when replacing the destination, unlike directories.
+                dosView.setReadOnly(true);
+                assertTrue(dosView.readAttributes().isReadOnly());
+                assumeFalse(Files.isWritable(targetFile), "Process must respect the file's read-only attribute");
             }
 
             assertThrows(IOException.class, () -> fileManager.savePlayerAssets(nextState, targetFile));
 
-            assertEquals(originalContent, Files.readString(targetFile));
+            assertArrayEquals(originalContent, Files.readAllBytes(targetFile));
             PlayerAssetsState reloaded = fileManager.loadPlayerAssets(targetFile);
             assertEquals(350, reloaded.getBalance());
             assertTrue(reloaded.getUnlockedContentIds().contains("SHIP_ORIGINAL"));
             assertEquals(2, reloaded.getItemQuantities().get("SHIELD"));
         } finally {
-            if (posixSupported) {
-                Files.setPosixFilePermissions(isolatedDir, PosixFilePermissions.fromString("rwxr-xr-x"));
+            if (posixView != null) {
+                posixView.setPermissions(originalPermissions);
             } else {
-                dirFile.setWritable(true);
+                dosView.setReadOnly(originallyReadOnly);
             }
         }
     }

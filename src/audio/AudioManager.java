@@ -3,8 +3,6 @@ package audio;
 import engine.Core;
 
 import javax.sound.sampled.*;
-import java.io.IOException;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -18,6 +16,9 @@ public class AudioManager {
 
     /** Application logger. */
     private static Logger logger;
+
+    /** Shared audio resource cache for background music and sound effects. */
+    private static AudioCache audioCache;
 
     /** Clip for the current background music. */
     private static Clip bgmClip;
@@ -52,6 +53,7 @@ public class AudioManager {
      */
     private static void initialize() {
         logger = Core.getLogger();
+        audioCache = new AudioCache();
         bgmClip = null;
         logger.info("Audio system initialized.");
     }
@@ -66,23 +68,21 @@ public class AudioManager {
      *             without a leading slash or the res directory prefix
      */
     public static void playBGM(String path) {
-        AudioInputStream stream = null;
         Clip newClip = null;
         boolean started = false;
 
         try {
-            if (path == null || path.trim().isEmpty())
-                throw new IllegalArgumentException("BGM path must not be empty.");
+            if (path == null || path.trim().isEmpty()) {
+                logger.warning("BGM path must not be empty.");
+                return;
+            }
 
-            URL resource = AudioManager.class.getClassLoader().getResource(path);
-
-            if (resource == null)
-                throw new IllegalArgumentException("BGM resource not found: " + path);
-
-            stream = AudioSystem.getAudioInputStream(resource);
+            AudioCache.AudioResource resource = audioCache.getAudioData(path);
+            if (resource == null) return;
 
             newClip = AudioSystem.getClip();
-            newClip.open(stream);
+            newClip.open(resource.format, resource.data, 0, resource.data.length);
+
             synchronized (BGM_MUTEX) {
                 stopBGM();
 
@@ -93,24 +93,12 @@ public class AudioManager {
                 bgmClip = newClip;
                 started = true;
             }
-
-            logger.info("Playing BGM: " + path);
-
         } catch (Exception e) {
-            logger.warning(
-                    "Failed to play BGM: " + path + " / " + e);
+            logger.warning("Failed to play BGM: " + path + " / " + e);
 
         } finally {
             if (!started && newClip != null)
-                newClip.close();
-
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    logger.warning("Failed to close BGM input stream: " + e);
-                }
-            }
+                releaseClip(newClip);
         }
     }
 
@@ -124,11 +112,8 @@ public class AudioManager {
                 return;
             }
 
-            bgmClip.stop();
-            bgmClip.close();
+            releaseClip(bgmClip);
             bgmClip = null;
-
-            logger.info("BGM stopped.");
         }
     }
 
@@ -147,8 +132,11 @@ public class AudioManager {
                 return;
             }
 
-            bgmClip.stop();
-            logger.info("BGM paused.");
+            try {
+                bgmClip.stop();
+            } catch (Exception e) {
+                logger.warning("Cannot pause BGM: " + e);
+            }
         }
     }
 
@@ -166,9 +154,11 @@ public class AudioManager {
                 logger.info("BGM is already playing.");
                 return;
             }
-
-            bgmClip.loop(Clip.LOOP_CONTINUOUSLY);
-            logger.info("BGM resumed.");
+            try {
+                bgmClip.loop(Clip.LOOP_CONTINUOUSLY);
+            } catch (Exception e) {
+                logger.warning("Cannot resume BGM: " + e);
+            }
         }
     }
 
@@ -185,23 +175,21 @@ public class AudioManager {
      * @return the playback ID, or -1 if playback fails
      */
     public static int playSFX(String path) {
-        AudioInputStream stream = null;
         Clip newClip = null;
         int id = -1;
         boolean registered = false;
 
         try {
-            if (path == null || path.trim().isEmpty())
-                throw new IllegalArgumentException("SFX path must not be empty.");
+            if (path == null || path.trim().isEmpty()) {
+                logger.warning("SFX path must not be empty.");
+                return -1;
+            }
 
-            URL resource = AudioManager.class.getClassLoader().getResource(path);
+            AudioCache.AudioResource resource = audioCache.getAudioData(path);
+            if (resource == null) return -1;
 
-            if (resource == null)
-                throw new IllegalArgumentException("SFX resource not found: " + path);
-
-            stream = AudioSystem.getAudioInputStream(resource);
             newClip = AudioSystem.getClip();
-            newClip.open(stream);
+            newClip.open(resource.format, resource.data, 0, resource.data.length);
 
             /* for thread-safe */
             synchronized (SFX_MUTEX) {
@@ -218,10 +206,7 @@ public class AudioManager {
                             finishedClip = sfxClips.remove(tid);
                         }
 
-                        if (finishedClip != null) {
-                            finishedClip.close();
-                            logger.info("SFX finished. ID: " + tid);
-                        }
+                        releaseClip(finishedClip);
                     }
                 });
 
@@ -231,24 +216,15 @@ public class AudioManager {
                 newClip.start();
             }
 
-            logger.info("Playing SFX: " + path + " / ID: " + id);
             return id;
         } catch (Exception e) {
             if (registered) {
                 stopSFX(id);
             } else if (newClip != null) {
-                newClip.close();
+                releaseClip(newClip);
             }
             logger.warning("Failed to play SFX: " + path + " / " + e);
             return -1;
-        } finally {
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    logger.warning("Failed to close SFX input stream: " + e);
-                }
-            }
         }
     }
 
@@ -267,14 +243,11 @@ public class AudioManager {
         }
 
         if (clip == null) {
-            logger.warning("No active SFX found. ID: " + id);
+            logger.info("No active SFX found. ID: " + id);
             return;
         }
 
-        clip.stop();
-        clip.close();
-
-        logger.info("SFX stopped. ID: " + id);
+        releaseClip(clip);
     }
 
     /**
@@ -293,8 +266,6 @@ public class AudioManager {
             bgmVolume = vol;
             applyVolume(bgmClip, vol);
         }
-
-        logger.info("BGM volume set to " + vol);
     }
 
     /**
@@ -314,8 +285,6 @@ public class AudioManager {
             for (Clip clip : sfxClips.values())
                 applyVolume(clip, vol);
         }
-
-        logger.info("SFX volume set to " + vol);
     }
 
     /**
@@ -348,21 +317,25 @@ public class AudioManager {
      * @param vol the volume level, from 0 to 100
      */
     private static void applyVolume(Clip clip, int vol) {
-        if (clip == null || !clip.isOpen()) return;
+        try {
+            if (clip == null || !clip.isOpen()) return;
 
-        if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-            logger.warning("Volume control is not supported.");
-            return;
+            if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+                logger.warning("Volume control is not supported.");
+                return;
+            }
+
+            if (muted) vol = 0;
+
+            FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+
+            float db = vol == 0 ? gain.getMinimum() : (float) (20.0 * Math.log10(vol / 50.0));
+
+            db = Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), db));
+            gain.setValue(db);
+        } catch (Exception e) {
+            logger.warning("Cannot apply volume: " + e);
         }
-
-        if (muted) vol = 0;
-
-        FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-
-        float db = vol == 0 ? gain.getMinimum() : (float) (20.0 * Math.log10(vol / 50.0));
-
-        db = Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), db));
-        gain.setValue(db);
     }
 
     /**
@@ -382,8 +355,6 @@ public class AudioManager {
                 applyVolume(clip, sfxVolume);
             }
         }
-
-        logger.info(value ? "Audio muted." : "Audio unmuted.");
     }
 
     /**
@@ -393,5 +364,27 @@ public class AudioManager {
      */
     public static boolean isMuted() {
         return muted;
+    }
+
+    /**
+     * Stops and closes the specified clip, logging failures without propagating them.
+     * Closing is attempted even if stopping fails. A null clip is ignored.
+     *
+     * @param clip the clip to release, or null
+     */
+    private static void releaseClip(Clip clip) {
+        if (clip == null) return;
+
+        try {
+            clip.stop();
+        } catch (Exception e) {
+            logger.warning("Failed to stop audio clip: " + e);
+        }
+
+        try {
+            clip.close();
+        } catch (Exception e) {
+            logger.warning("Failed to close audio clip: " + e);
+        }
     }
 }

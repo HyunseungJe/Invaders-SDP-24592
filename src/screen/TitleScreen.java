@@ -39,6 +39,7 @@ public class TitleScreen extends Screen {
 		this.selectionCooldown = Core.getCooldown(SELECTION_TIME);
 		this.selectionCooldown.reset();
 
+		AudioManager.playBGM("audio/bgm/music_menu.wav");
 	}
 
 	/**
@@ -75,6 +76,12 @@ public class TitleScreen extends Screen {
 			}
 			if (inputManager.isKeyDown(KeyEvent.VK_SPACE)) {
 				AudioManager.playSFX("audio/sfx/menu_select.wav");
+				this.isRunning = false;
+			}
+			// Shortcut to the infinite mode, until it gets a menu entry.
+			if (inputManager.isKeyDown(KeyEvent.VK_I)) {
+				AudioManager.playSFX("audio/sfx/menu_select.wav");
+				this.returnCode = 8;
 				this.isRunning = false;
 			}
 		}
