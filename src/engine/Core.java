@@ -1,12 +1,16 @@
 package engine;
 
+import java.io.IOException;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.swing.JOptionPane;
+
 import currency.PlayerAssets;
+import currency.PlayerAssetsState;
 import audio.AudioControls;
 import screen.AudioControlScreen;
 import screen.GameScreen;
@@ -20,6 +24,7 @@ import campaign.CampaignManager;
 import screen.SettingsScreen;
 import screen.ControlsSettingsScreen;
 import screen.GameplaySettingsScreen;
+import shop.ShopController;
 
 /**
  * Implements core game logic.
@@ -47,6 +52,8 @@ public final class Core {
 	private static Screen currentScreen;
 	/** Player assets shared across levels and new games in this session. */
 	private static PlayerAssets playerAssets;
+	/** Shop controller shared for this application session. */
+	private static ShopController shopController;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
 			.getSimpleName());
@@ -88,6 +95,13 @@ public final class Core {
 		int height = frame.getHeight();
 
 		playerAssets = new PlayerAssets();
+		if (!initializeShopWithRetry()) {
+			frame.dispose();
+			if (fileHandler != null) {
+				fileHandler.close();
+			}
+			return;
+		}
 		GameState gameState;
 
 		int returnCode = 1;
@@ -207,6 +221,42 @@ public final class Core {
 		fileHandler.flush();
 		fileHandler.close();
 		System.exit(0);
+	}
+
+	/** Loads shared assets before creating the session's shop controller. */
+	static ShopController initializeShop(final PlayerAssets assets,
+			final FileManager files) throws IOException {
+		return initializeShop(assets, files, files.loadPlayerAssets());
+	}
+
+	static ShopController initializeShop(final PlayerAssets assets,
+			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
+		if (!assets.restore(savedAssets)) {
+			throw new IOException("Loaded assets could not be restored.");
+		}
+		return new ShopController(assets, files);
+	}
+
+	private static boolean initializeShopWithRetry() {
+		while (true) {
+			try {
+				shopController = initializeShop(playerAssets, getFileManager());
+				return true;
+			} catch (IOException exception) {
+				LOGGER.warning("Player assets could not be loaded: " + exception);
+			} catch (SecurityException exception) {
+				LOGGER.warning("Player assets access denied: " + exception);
+			}
+			int choice = JOptionPane.showOptionDialog(frame,
+					"Your saved progress could not be loaded.\n"
+					+ "Your save has not been changed. Retry or quit?",
+					"Unable to load progress", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.WARNING_MESSAGE, null,
+					new String[] { "Retry", "Quit" }, "Retry");
+			if (choice != 0) {
+				return false;
+			}
+		}
 	}
 
 	private static GameSettings applyDifficulty(

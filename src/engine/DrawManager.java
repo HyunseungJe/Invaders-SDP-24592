@@ -15,6 +15,10 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import screen.Screen;
+import currency.PlayerAssetsState;
+import currency.ShopCatalog.Category;
+import shop.ShopController.SaveStatus;
+import shop.ShopProduct;
 import entity.Entity;
 import entity.Ship;
 
@@ -667,6 +671,159 @@ public final class DrawManager {
 			drawCenteredBigString(screen, "GO!",
 					screen.getHeight() / 2 + fontBigMetrics.getHeight() / 3);
 	}
+
+    /** Draws the shop cards and purchase/save feedback. */
+    public void drawShop(final Screen screen, final List<ShopProduct> items,
+            final List<ShopProduct> unlocks, final PlayerAssetsState assets, final int section,
+            final int itemIndex, final int unlockIndex, final int actionIndex,
+            final String feedback, final boolean purchaseSucceeded, final SaveStatus saveStatus) {
+        int width = screen.getWidth();
+        int height = screen.getHeight();
+        backBufferGraphics.setColor(Color.GREEN);
+        drawCenteredBigString(screen, "Shop", 34);
+        backBufferGraphics.setColor(Color.WHITE);
+        drawCenteredRegularString(screen, "Credits: " + assets.getBalance(), 61);
+
+        int cardSize = Math.max(76, Math.min(120, Math.min((width - 80) / 3, (height - 248) / 2)));
+        drawShopShelf(screen, items, assets, "Items", "No items available",
+                96, cardSize, itemIndex, section == 0);
+        drawShopShelf(screen, unlocks, assets, "Unlocks", "No unlocks available",
+                132 + cardSize, cardSize, unlockIndex, section == 1);
+
+        int actionsY = height - 96;
+        drawShopText("Back (Esc)", 31, actionsY, 12,
+                section == 2 && actionIndex == 0 ? Color.GREEN : Color.WHITE, 120);
+        if (saveStatus == SaveStatus.FAILED) {
+            drawShopText("Retry save (R)", width / 2, actionsY, 12,
+                    section == 2 && actionIndex == 1 ? Color.GREEN : Color.WHITE, width / 2 - 24);
+        }
+        backBufferGraphics.setColor(purchaseSucceeded ? Color.GREEN : Color.ORANGE);
+        drawShopCentered(screen, feedback, height - 70);
+        String saveMessage = saveStatus == SaveStatus.FAILED ? "Save failed. Progress kept this session."
+                : saveStatus == SaveStatus.SAVED ? "Progress saved." : "";
+        backBufferGraphics.setColor(saveStatus == SaveStatus.FAILED ? Color.ORANGE : Color.GRAY);
+        drawShopCentered(screen, saveMessage, height - 52);
+        backBufferGraphics.setColor(Color.GRAY);
+        drawShopCentered(screen, "Up/Down: section   Left/Right: product", height - 37);
+        drawShopCentered(screen, "WASD also works   Space/Enter: confirm", height - 21);
+    }
+
+    private void drawShopShelf(Screen screen, List<ShopProduct> products, PlayerAssetsState assets,
+            String heading, String emptyText, int top, int size, int index, boolean active) {
+        int width = screen.getWidth();
+        drawShopText(heading, 31, top - 12, 12, active ? Color.GREEN : Color.WHITE, width - 110);
+        String count = products.isEmpty() ? "0 / 0" : (index + 1) + " / " + products.size();
+        drawShopText(count, width - 70, top - 12, 10, Color.GRAY, 52);
+        if (products.isEmpty()) {
+            backBufferGraphics.setColor(Color.DARK_GRAY);
+            backBufferGraphics.drawRect(31, top, width - 63, size);
+            backBufferGraphics.setColor(Color.GRAY);
+            drawShopCentered(screen, emptyText, top + size / 2);
+            return;
+        }
+
+        int first = index / 3 * 3;
+        int end = Math.min(products.size(), first + 3);
+        int rowWidth = (end - first) * size + (end - first - 1) * 10;
+        int startX = (width - rowWidth) / 2;
+        for (int productIndex = first; productIndex < end; productIndex++) {
+            drawShopCard(products.get(productIndex), assets,
+                    startX + (productIndex - first) * (size + 10), top, size,
+                    active && productIndex == index);
+        }
+        if (products.size() > 1) {
+            int cy = top + size / 2;
+            backBufferGraphics.setColor(active ? Color.GREEN : Color.GRAY);
+            backBufferGraphics.fillPolygon(new int[] {12, 18, 18}, new int[] {cy, cy - 5, cy + 5}, 3);
+            backBufferGraphics.fillPolygon(new int[] {width - 13, width - 19, width - 19},
+                    new int[] {cy, cy - 5, cy + 5}, 3);
+        }
+    }
+
+    private void drawShopCard(ShopProduct product, PlayerAssetsState assets,
+            int x, int y, int size, boolean selected) {
+        backBufferGraphics.setColor(selected ? Color.GREEN : Color.DARK_GRAY);
+        backBufferGraphics.drawRect(x, y, size, size);
+        boolean permanent = product.getCategory() == Category.UNLOCKABLE;
+        boolean owned = permanent && assets.getUnlockedContentIds().contains(product.getId());
+        Integer quantity = assets.getItemQuantities().get(product.getId());
+        String badge = owned ? "Owned" : !permanent ? "x" + (quantity == null ? 0 : quantity) : "";
+        drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
+        backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
+        drawShopCategoryIcon(permanent, x + size / 2 - 10, y + 20);
+        drawShopText(product.getName(), x + 9, y + 60, 11,
+                selected ? Color.GREEN : Color.WHITE, size - 18);
+        drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
+        backBufferGraphics.setColor(Color.DARK_GRAY);
+        backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
+        String price = owned ? "Unlocked" : product.getPrice() + " C";
+        drawShopText(price, x + 9, y + size - 9, 11, owned ? Color.GRAY : Color.WHITE, size - 18);
+    }
+
+    /** Neutral placeholders until content owners supply agreed product artwork. */
+    private void drawShopCategoryIcon(boolean permanent, int x, int y) {
+        if (permanent) {
+            backBufferGraphics.drawRect(x + 5, y, 10, 9);
+            backBufferGraphics.fillRect(x, y + 8, 21, 15);
+            backBufferGraphics.setColor(Color.BLACK);
+            backBufferGraphics.fillRect(x + 9, y + 12, 3, 7);
+        } else {
+            backBufferGraphics.drawRect(x, y + 3, 20, 19);
+            backBufferGraphics.drawRect(x + 1, y + 4, 18, 17);
+            backBufferGraphics.drawLine(x + 1, y + 9, x + 19, y + 9);
+            backBufferGraphics.drawRect(x + 7, y + 1, 6, 4);
+        }
+    }
+
+    private void drawShopDescription(String description, int x, int y, int width) {
+        backBufferGraphics.setFont(fontRegular.deriveFont(10f));
+        backBufferGraphics.setColor(Color.GRAY);
+        FontMetrics metrics = backBufferGraphics.getFontMetrics();
+        String remaining = description.trim();
+        for (int line = 0; line < 2 && !remaining.isEmpty(); line++) {
+            String text = remaining;
+            if (line == 0 && metrics.stringWidth(text) > width) {
+                int end = text.length();
+                while (end > 1 && metrics.stringWidth(text.substring(0, end)) > width) end--;
+                int space = text.lastIndexOf(' ', end);
+                if (space > 0) end = space;
+                text = remaining.substring(0, end);
+                remaining = remaining.substring(end).trim();
+            } else {
+                remaining = "";
+            }
+            drawShopLabel(text, x, y + line * 12, width);
+        }
+    }
+
+    private void drawShopText(String text, int x, int y, int size, Color color, int width) {
+        backBufferGraphics.setFont(fontRegular.deriveFont((float) size));
+        backBufferGraphics.setColor(color);
+        drawShopLabel(text, x, y, width);
+    }
+
+    private void drawShopCentered(final Screen screen, final String text, final int y) {
+        Font fitted = fontRegular.deriveFont(11f);
+        while (fitted.getSize() > 9
+                && backBufferGraphics.getFontMetrics(fitted).stringWidth(text) > screen.getWidth() - 32) {
+            fitted = fitted.deriveFont((float) fitted.getSize() - 1);
+        }
+        backBufferGraphics.setFont(fitted);
+        int x = Math.max(16, (screen.getWidth() - backBufferGraphics.getFontMetrics().stringWidth(text)) / 2);
+        drawShopLabel(text, x, y, screen.getWidth() - x - 16);
+    }
+
+    private void drawShopLabel(final String text, final int x, final int y, final int maxWidth) {
+        String label = text;
+        FontMetrics metrics = backBufferGraphics.getFontMetrics();
+        if (metrics.stringWidth(label) > maxWidth) {
+            while (!label.isEmpty() && metrics.stringWidth(label + "...") > maxWidth) {
+                label = label.substring(0, label.length() - 1);
+            }
+            label += "...";
+        }
+        backBufferGraphics.drawString(label, x, y);
+    }
 
 	public void drawSettingsMenu(final Screen screen, final int selectedOption) {
 		String[] options = { "Audio", "Controls", "Gameplay", "Back" };
