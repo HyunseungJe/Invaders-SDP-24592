@@ -689,8 +689,8 @@ public final class DrawManager {
         backBufferGraphics.setColor(saveStatus == SaveStatus.FAILED ? Color.ORANGE : Color.GRAY);
         drawShopCentered(screen, saveMessage, height - 52);
         backBufferGraphics.setColor(Color.GRAY);
-        drawShopCentered(screen, "Up/Down: section   Left/Right: product", height - 29);
-        drawShopCentered(screen, "WASD also works   Space/Enter: confirm", height - 13);
+        drawShopCentered(screen, "Up/Down: section   Left/Right: product", height - 37);
+        drawShopCentered(screen, "WASD also works   Space/Enter: confirm", height - 21);
     }
 
     private void drawShopShelf(Screen screen, List<ShopProduct> products, PlayerAssetsState assets,
