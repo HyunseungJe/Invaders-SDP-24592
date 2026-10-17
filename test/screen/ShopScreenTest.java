@@ -25,7 +25,7 @@ class ShopScreenTest {
     private final Canvas keySource = new Canvas();
     private boolean originalMuted;
     private FileManager files;
-    private Path originalPath;
+    private ShopTestFixtures.SaveFile saveFile;
     private PlayerAssets assets;
     private ShopController controller;
     private ShopScreen screen;
@@ -36,10 +36,9 @@ class ShopScreenTest {
         AudioManager.setMuted(true);
         releaseAll();
         files = Core.getFileManager();
-        originalPath = files.getAssetsSavePath();
-        files.setAssetsSavePath(temp.resolve("assets.properties"));
+        saveFile = new ShopTestFixtures.SaveFile(files, temp.resolve("assets.properties"));
         assets = ShopTestFixtures.fundedAssets();
-        controller = ShopTestFixtures.controller(assets, files);
+        controller = ShopTestFixtures.controller(assets, saveFile);
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();
     }
@@ -47,7 +46,6 @@ class ShopScreenTest {
     @AfterEach
     void cleanUp() {
         releaseAll();
-        files.setAssetsSavePath(originalPath);
         AudioManager.setMuted(originalMuted);
     }
 
@@ -120,11 +118,11 @@ class ShopScreenTest {
         tap(KeyEvent.VK_SPACE);
         assertTrue(assets.isUnlocked(ShopTestFixtures.UNLOCK));
         assertEquals(500, assets.getBalance());
-        byte[] saved = Files.readAllBytes(files.getAssetsSavePath());
+        byte[] saved = Files.readAllBytes(saveFile.getPath());
         tap(KeyEvent.VK_SPACE);
         assertEquals(PurchaseResult.ALREADY_UNLOCKED, state("lastResult"));
         assertEquals(500, ((PlayerAssetsState) state("assets")).getBalance());
-        assertArrayEquals(saved, Files.readAllBytes(files.getAssetsSavePath()));
+        assertArrayEquals(saved, Files.readAllBytes(saveFile.getPath()));
     }
 
     @Test
@@ -135,15 +133,15 @@ class ShopScreenTest {
         assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, state("lastResult"));
         assertEquals(0, ((PlayerAssetsState) state("assets")).getBalance());
         assertTrue(screen.isRunning);
-        assertFalse(Files.exists(files.getAssetsSavePath()));
+        assertFalse(Files.exists(saveFile.getPath()));
     }
 
     @Test
     void retryButtonAndShortcutSaveOnlyAndSurviveReentry() throws Exception {
-        Path save = files.getAssetsSavePath();
+        Path save = saveFile.getPath();
         Path blocker = temp.resolve("blocker");
         Files.write(blocker, new byte[] { 1 });
-        files.setAssetsSavePath(blocker.resolve("save"));
+        saveFile.setPath(blocker.resolve("save"));
         screen.isRunning = true;
         tap(KeyEvent.VK_SPACE);
         assertEquals(PurchaseResult.SUCCESS, state("lastResult"));
@@ -154,13 +152,13 @@ class ShopScreenTest {
         assertEquals(900, ((PlayerAssetsState) state("assets")).getBalance());
         tap(KeyEvent.VK_R);
         assertEquals(900, assets.getBalance());
-        files.setAssetsSavePath(save);
+        saveFile.setPath(save);
         tap(KeyEvent.VK_DOWN);
         tap(KeyEvent.VK_DOWN); // Footer after the two shelves.
         tap(KeyEvent.VK_RIGHT); // Retry save, next to Back.
         tap(KeyEvent.VK_SPACE);
         assertEquals(ShopController.SaveStatus.SAVED, controller.getSaveStatus());
-        assertEquals(900, files.loadPlayerAssets().getBalance());
+        assertEquals(900, saveFile.load().getBalance());
         assertEquals(1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
         assertEquals(2, state("selectedSection"));
         assertEquals(0, state("selectedAction")); // Back after retry; never a product.
@@ -177,7 +175,7 @@ class ShopScreenTest {
         assertFalse(screen.isRunning);
         assertEquals(ShopScreen.RETURN_TO_MAIN_MENU, screen.returnCode);
         assertEquals(1000, assets.getBalance());
-        assertFalse(Files.exists(files.getAssetsSavePath()));
+        assertFalse(Files.exists(saveFile.getPath()));
     }
 
     @Test
@@ -220,7 +218,7 @@ class ShopScreenTest {
         PlayerAssets counted = new PlayerAssets() {
             @Override public PlayerAssetsState snapshot() { calls[0]++; return super.snapshot(); }
         };
-        ShopScreen idle = new ShopScreen(448, 520, 60, ShopTestFixtures.controller(counted, files));
+        ShopScreen idle = new ShopScreen(448, 520, 60, ShopTestFixtures.controller(counted, saveFile));
         idle.initialize();
         int initialCalls = calls[0];
         for (int i = 0; i < 600; i++) idle.processInput(true);
@@ -229,7 +227,7 @@ class ShopScreenTest {
 
     @Test
     void horizontalBrowsingBuysTheSelectedCardAndEachShelfRemembersItsPosition() throws Exception {
-        controller = ShopTestFixtures.controller(assets, files, ShopTestFixtures.previewProducts());
+        controller = ShopTestFixtures.controller(assets, saveFile, ShopTestFixtures.previewProducts());
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();
         tap(KeyEvent.VK_RIGHT);
@@ -253,7 +251,7 @@ class ShopScreenTest {
 
     @Test
     void horizontalWrapDoesNotMoveToAnotherShelfAndHeldKeysDoNotRepeat() throws Exception {
-        controller = ShopTestFixtures.controller(assets, files, ShopTestFixtures.previewProducts());
+        controller = ShopTestFixtures.controller(assets, saveFile, ShopTestFixtures.previewProducts());
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();
         tap(KeyEvent.VK_LEFT);
@@ -267,7 +265,7 @@ class ShopScreenTest {
 
     @Test
     void missingShelfIsSkippedAndHorizontalNavigationNeverPurchasesAnEmptySlot() throws Exception {
-        controller = ShopTestFixtures.controller(assets, files,
+        controller = ShopTestFixtures.controller(assets, saveFile,
                 java.util.Collections.singletonList(ShopTestFixtures.products().get(1)));
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();
@@ -298,7 +296,7 @@ class ShopScreenTest {
     void lowerSectionAcceptsGenericPermanentContentWithoutShipSpecificRules() throws Exception {
         shop.ShopProduct bgm = new shop.ShopProduct("TEST_BGM", "BGM sample",
                 currency.ShopCatalog.Category.UNLOCKABLE, 250, "Sample permanent unlock.");
-        controller = ShopTestFixtures.controller(assets, files, java.util.Arrays.asList(
+        controller = ShopTestFixtures.controller(assets, saveFile, java.util.Arrays.asList(
                 ShopTestFixtures.products().get(0), bgm));
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();

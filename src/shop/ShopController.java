@@ -24,8 +24,12 @@ public final class ShopController {
         FAILED
     }
 
+    interface AssetSaver {
+        void save(PlayerAssetsState state) throws IOException;
+    }
+
     private final PlayerAssets assets;
-    private final FileManager fileManager;
+    private final AssetSaver saver;
     private final ShopCatalog catalog;
     private final PurchaseSystem purchases;
     private final List<ShopProduct> products;
@@ -36,12 +40,22 @@ public final class ShopController {
         this(assets, fileManager, ShopProducts.availableProducts());
     }
 
-    ShopController(PlayerAssets assets, FileManager fileManager, List<ShopProduct> definitions) {
-        if (assets == null || fileManager == null || definitions == null) {
+    ShopController(PlayerAssets assets, final FileManager fileManager, List<ShopProduct> definitions) {
+        this(assets, fileManager, definitions, new AssetSaver() {
+            @Override
+            public void save(PlayerAssetsState state) throws IOException {
+                fileManager.savePlayerAssets(state);
+            }
+        });
+    }
+
+    ShopController(PlayerAssets assets, FileManager fileManager, List<ShopProduct> definitions,
+            AssetSaver saver) {
+        if (assets == null || fileManager == null || definitions == null || saver == null) {
             throw new IllegalArgumentException("Shop dependencies cannot be null.");
         }
         this.assets = assets;
-        this.fileManager = fileManager;
+        this.saver = saver;
         this.catalog = new ShopCatalog();
 
         List<ShopProduct> listed = new ArrayList<ShopProduct>();
@@ -94,7 +108,7 @@ public final class ShopController {
 
     private boolean saveLatestAssets() {
         try {
-            fileManager.savePlayerAssets(assets.snapshot());
+            saver.save(assets.snapshot());
             saveStatus = SaveStatus.SAVED;
             return true;
         } catch (IOException exception) {

@@ -4,6 +4,8 @@ import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
 import engine.FileManager;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,12 +48,42 @@ public final class ShopTestFixtures {
         return products;
     }
 
-    public static ShopController controller(PlayerAssets assets, FileManager files) {
-        return new ShopController(assets, files, products());
+    public static ShopController controller(PlayerAssets assets, SaveFile save) {
+        return controller(assets, save, products());
     }
 
-    public static ShopController controller(PlayerAssets assets, FileManager files,
+    public static ShopController controller(PlayerAssets assets, SaveFile save,
             List<ShopProduct> products) {
-        return new ShopController(assets, files, products);
+        return new ShopController(assets, save.files, products, save);
+    }
+
+    /** Keeps test and preview writes away from the default save. */
+    public static final class SaveFile implements ShopController.AssetSaver {
+        private final FileManager files;
+        private Path path;
+
+        public SaveFile(FileManager files, Path path) {
+            if (files == null) throw new IllegalArgumentException("File manager is required.");
+            this.files = files;
+            setPath(path);
+        }
+
+        public Path getPath() {
+            return path;
+        }
+
+        public void setPath(Path path) {
+            if (path == null) throw new IllegalArgumentException("An isolated save path is required.");
+            this.path = path;
+        }
+
+        public PlayerAssetsState load() throws IOException {
+            return files.loadPlayerAssets(path);
+        }
+
+        @Override
+        public void save(PlayerAssetsState state) throws IOException {
+            files.savePlayerAssets(state, path);
+        }
     }
 }

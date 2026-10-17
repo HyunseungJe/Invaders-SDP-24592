@@ -10,6 +10,7 @@ import java.util.logging.Logger;
 import javax.swing.JOptionPane;
 
 import currency.PlayerAssets;
+import currency.PlayerAssetsState;
 import audio.AudioControls;
 import screen.AudioControlScreen;
 import screen.GameScreen;
@@ -225,7 +226,12 @@ public final class Core {
 	/** Loads shared assets before creating the session's shop controller. */
 	static ShopController initializeShop(final PlayerAssets assets,
 			final FileManager files) throws IOException {
-		if (!assets.restore(files.loadPlayerAssets())) {
+		return initializeShop(assets, files, files.loadPlayerAssets());
+	}
+
+	static ShopController initializeShop(final PlayerAssets assets,
+			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
+		if (!assets.restore(savedAssets)) {
 			throw new IOException("Loaded assets could not be restored.");
 		}
 		return new ShopController(assets, files);

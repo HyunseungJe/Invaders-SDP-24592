@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +22,7 @@ class ShopControllerTest {
     Path temp;
 
     private FileManager files;
-    private Path originalPath;
+    private ShopTestFixtures.SaveFile saveFile;
     private Path save;
     private PlayerAssets assets;
     private ShopController shop;
@@ -31,16 +30,10 @@ class ShopControllerTest {
     @BeforeEach
     void setUp() {
         files = Core.getFileManager();
-        originalPath = files.getAssetsSavePath();
         save = temp.resolve("assets.properties");
-        files.setAssetsSavePath(save);
+        saveFile = new ShopTestFixtures.SaveFile(files, save);
         assets = ShopTestFixtures.fundedAssets();
-        shop = ShopTestFixtures.controller(assets, files);
-    }
-
-    @AfterEach
-    void restorePath() {
-        files.setAssetsSavePath(originalPath);
+        shop = ShopTestFixtures.controller(assets, saveFile);
     }
 
     @Test
@@ -59,13 +52,13 @@ class ShopControllerTest {
     @Test
     void consumablePurchasesUseCatalogPriceAndSaveEachTime() throws Exception {
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(ShopTestFixtures.CONSUMABLE));
-        assertEquals(900, files.loadPlayerAssets().getBalance());
+        assertEquals(900, saveFile.load().getBalance());
 
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(ShopTestFixtures.CONSUMABLE));
         assertEquals(800, assets.getBalance());
         assertEquals(2, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
-        assertEquals(800, files.loadPlayerAssets().getBalance());
-        assertEquals(2, files.loadPlayerAssets().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        assertEquals(800, saveFile.load().getBalance());
+        assertEquals(2, saveFile.load().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
         assertEquals(ShopController.SaveStatus.SAVED, shop.getSaveStatus());
     }
 
@@ -83,7 +76,7 @@ class ShopControllerTest {
     @Test
     void insufficientFundsAndBadIdsDoNotChangeAssetsOrCreateSave() {
         PlayerAssets empty = new PlayerAssets();
-        ShopController poorShop = ShopTestFixtures.controller(empty, files);
+        ShopController poorShop = ShopTestFixtures.controller(empty, saveFile);
 
         assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, poorShop.purchase(ShopTestFixtures.CONSUMABLE));
         assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, poorShop.purchase(ShopTestFixtures.UNLOCK));
@@ -113,9 +106,9 @@ class ShopControllerTest {
         shop.purchase(ShopTestFixtures.CONSUMABLE);
         shop.purchase(ShopTestFixtures.UNLOCK);
         PlayerAssets restored = new PlayerAssets();
-        assertTrue(restored.restore(files.loadPlayerAssets()));
+        assertTrue(restored.restore(saveFile.load()));
 
-        ShopController restarted = ShopTestFixtures.controller(restored, files);
+        ShopController restarted = ShopTestFixtures.controller(restored, saveFile);
 
         assertEquals(400, restarted.snapshot().getBalance());
         assertTrue(restored.isUnlocked(ShopTestFixtures.UNLOCK));
@@ -127,11 +120,11 @@ class ShopControllerTest {
 
     @Test
     void failedSaveKeepsPurchaseAndRetrySavesLatestAssets() throws Exception {
-        files.savePlayerAssets(assets.snapshot());
+        saveFile.save(assets.snapshot());
         byte[] previousSave = Files.readAllBytes(save);
         Path blocker = temp.resolve("not-a-directory");
         Files.write(blocker, new byte[] { 1 });
-        files.setAssetsSavePath(blocker.resolve("assets.properties"));
+        saveFile.setPath(blocker.resolve("assets.properties"));
 
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(ShopTestFixtures.CONSUMABLE));
         assertEquals(900, assets.getBalance());
@@ -147,12 +140,12 @@ class ShopControllerTest {
         assertTrue(rewards.settle());
         int latestBalance = assets.getBalance();
         assertTrue(latestBalance > 900);
-        files.setAssetsSavePath(save);
+        saveFile.setPath(save);
 
         assertTrue(shop.retrySave());
         assertEquals(ShopController.SaveStatus.SAVED, shop.getSaveStatus());
-        assertEquals(latestBalance, files.loadPlayerAssets().getBalance());
-        assertEquals(1, files.loadPlayerAssets().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        assertEquals(latestBalance, saveFile.load().getBalance());
+        assertEquals(1, saveFile.load().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
         byte[] recovered = Files.readAllBytes(save);
         assertTrue(shop.retrySave());
         assertArrayEquals(recovered, Files.readAllBytes(save));
@@ -164,14 +157,14 @@ class ShopControllerTest {
     void laterPurchaseAlsoSavesEarlierUnsavedPurchase() throws Exception {
         Path blocker = temp.resolve("blocker");
         Files.write(blocker, new byte[] { 1 });
-        files.setAssetsSavePath(blocker.resolve("save"));
+        saveFile.setPath(blocker.resolve("save"));
         shop.purchase(ShopTestFixtures.CONSUMABLE);
-        files.setAssetsSavePath(save);
+        saveFile.setPath(save);
 
         shop.purchase(ShopTestFixtures.UNLOCK);
 
         assertEquals(ShopController.SaveStatus.SAVED, shop.getSaveStatus());
-        PlayerAssetsState saved = files.loadPlayerAssets();
+        PlayerAssetsState saved = saveFile.load();
         assertEquals(400, saved.getBalance());
         assertTrue(saved.getUnlockedContentIds().contains(ShopTestFixtures.UNLOCK));
         assertEquals(1, saved.getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
@@ -180,7 +173,7 @@ class ShopControllerTest {
     @Test
     void productListAndSnapshotsAreReadOnlyCopies() {
         List<ShopProduct> input = new ArrayList<ShopProduct>(ShopTestFixtures.products());
-        ShopController configured = new ShopController(assets, files, input);
+        ShopController configured = new ShopController(assets, files, input, saveFile);
         input.clear();
 
         assertEquals(2, configured.getProducts().size());
@@ -212,6 +205,23 @@ class ShopControllerTest {
 
         assertThrows(IllegalArgumentException.class, () -> new ShopController(assets, files, duplicate));
         assertFalse(Files.exists(save));
+    }
+
+    @Test
+    void controllersKeepTheirSavePathsIndependent() throws Exception {
+        ShopTestFixtures.SaveFile otherSave = new ShopTestFixtures.SaveFile(files,
+                temp.resolve("other-assets.properties"));
+        ShopController other = ShopTestFixtures.controller(ShopTestFixtures.fundedAssets(), otherSave);
+
+        shop.purchase(ShopTestFixtures.CONSUMABLE);
+        other.purchase(ShopTestFixtures.UNLOCK);
+
+        assertEquals(900, saveFile.load().getBalance());
+        assertEquals(1, saveFile.load().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        assertTrue(saveFile.load().getUnlockedContentIds().isEmpty());
+        assertEquals(500, otherSave.load().getBalance());
+        assertTrue(otherSave.load().getItemQuantities().isEmpty());
+        assertTrue(otherSave.load().getUnlockedContentIds().contains(ShopTestFixtures.UNLOCK));
     }
 
     @Test

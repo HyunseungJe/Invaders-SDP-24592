@@ -34,8 +34,8 @@ public final class ShopPreview {
         output = Files.createTempDirectory(smoke ? "shop-smoke-" : "shop-preview-");
         System.out.println("Preview files: " + output);
         FileManager files = Core.getFileManager();
-        Path originalPath = files.getAssetsSavePath();
-        files.setAssetsSavePath(output.resolve("assets.properties"));
+        ShopTestFixtures.SaveFile saveFile = new ShopTestFixtures.SaveFile(files,
+                output.resolve("assets.properties"));
         boolean originalMuted = AudioManager.isMuted();
         AudioManager.setMuted(true);
         Frame frame = new Frame(448, 520);
@@ -43,10 +43,10 @@ public final class ShopPreview {
         Core.getDrawManager().setFrame(frame);
         try {
             PlayerAssets assets = ShopTestFixtures.fundedAssets();
-            ShopController controller = ShopTestFixtures.controller(assets, files,
+            ShopController controller = ShopTestFixtures.controller(assets, saveFile,
                     smoke ? ShopTestFixtures.products() : ShopTestFixtures.previewProducts());
             if (smoke) {
-                smoke(frame, assets, controller, files);
+                smoke(frame, assets, controller, files, saveFile);
             } else {
                 int choice;
                 do {
@@ -66,12 +66,12 @@ public final class ShopPreview {
         } finally {
             releaseKeys();
             AudioManager.setMuted(originalMuted);
-            files.setAssetsSavePath(originalPath);
             frame.dispose();
         }
     }
 
-    private static void smoke(Frame frame, PlayerAssets assets, ShopController shop, FileManager files)
+    private static void smoke(Frame frame, PlayerAssets assets, ShopController shop, FileManager files,
+            ShopTestFixtures.SaveFile saveFile)
             throws Exception {
         int space = KeyEvent.VK_SPACE;
         int down = KeyEvent.VK_DOWN;
@@ -84,28 +84,28 @@ public final class ShopPreview {
         check(assets.getBalance() == 400, "Both purchase paths and held confirmation");
         check(assets.getItemQuantity(ShopTestFixtures.CONSUMABLE) == 1, "Single consumable grant");
         check(assets.isUnlocked(ShopTestFixtures.UNLOCK), "Permanent ownership");
-        Path save = files.getAssetsSavePath();
+        Path save = saveFile.getPath();
         byte[] saved = Files.readAllBytes(save);
 
         Path blocker = output.resolve("not-a-directory");
         Files.write(blocker, new byte[] {1});
-        files.setAssetsSavePath(blocker.resolve("assets.properties"));
+        saveFile.setPath(blocker.resolve("assets.properties"));
         run(frame, shop, new int[] {0, space, space, 0, escape},
                 new String[] {null, "05-save-failed", null, null, null});
         check(assets.getBalance() == 300 && assets.getItemQuantity(ShopTestFixtures.CONSUMABLE) == 2,
                 "Failed save retains completed purchase");
         check(Arrays.equals(saved, Files.readAllBytes(save)), "Previous save preserved");
-        files.setAssetsSavePath(save);
+        saveFile.setPath(save);
         run(frame, shop, new int[] {0, retry, retry, 0, escape},
                 new String[] {"06-reentry-pending", "07-retry-saved", null, null, null});
         check(shop.getSaveStatus() == ShopController.SaveStatus.SAVED, "Retry saves");
-        PlayerAssetsState restored = files.loadPlayerAssets();
+        PlayerAssetsState restored = saveFile.load();
         check(restored.getBalance() == 300
                 && restored.getItemQuantities().get(ShopTestFixtures.CONSUMABLE) == 2
                 && restored.getUnlockedContentIds().contains(ShopTestFixtures.UNLOCK), "Reload both assets");
 
         run(frame, new ShopController(assets, files), new int[] {0, space}, new String[] {"08-empty", null});
-        run(frame, ShopTestFixtures.controller(new PlayerAssets(), files),
+        run(frame, ShopTestFixtures.controller(new PlayerAssets(), saveFile),
                 new int[] {0, space, 0, escape}, new String[] {null, "09-insufficient", null, null});
 
         List<ShopProduct> many = new ArrayList<ShopProduct>();
@@ -113,11 +113,11 @@ public final class ShopPreview {
             many.add(new ShopProduct("TEST_" + i, "Sample product with a very long readable name " + i,
                     Category.INVENTORY, Integer.MAX_VALUE));
         }
-        run(frame, ShopTestFixtures.controller(assets, files, many),
+        run(frame, ShopTestFixtures.controller(assets, saveFile, many),
                 new int[] {0, right, 0, right, 0, right, 0, right, 0, escape},
                 new String[] {"10-long-labels", null, null, null, null, "11-scroll", null, null, null, null});
 
-        run(frame, ShopTestFixtures.controller(ShopTestFixtures.fundedAssets(), files,
+        run(frame, ShopTestFixtures.controller(ShopTestFixtures.fundedAssets(), saveFile,
                         ShopTestFixtures.previewProducts()),
                 new int[] {0, right, 0, down, 0, right, 0, KeyEvent.VK_UP, 0, escape},
                 new String[] {"12-two-shelves", "13-item-card", null, null, null,

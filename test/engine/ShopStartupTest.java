@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,25 +19,19 @@ class ShopStartupTest {
     Path temp;
 
     private FileManager files;
-    private Path previousPath;
+    private Path save;
 
     @BeforeEach
     void setUp() {
         files = Core.getFileManager();
-        previousPath = files.getAssetsSavePath();
-        files.setAssetsSavePath(temp.resolve("assets.properties"));
-    }
-
-    @AfterEach
-    void restorePath() {
-        files.setAssetsSavePath(previousPath);
+        save = temp.resolve("assets.properties");
     }
 
     @Test
     void missingSaveCreatesEmptySessionWithoutWriting() throws Exception {
         PlayerAssets shared = new PlayerAssets();
 
-        ShopController controller = Core.initializeShop(shared, files);
+        ShopController controller = Core.initializeShop(shared, files, files.loadPlayerAssets(save));
 
         assertEquals(0, shared.getBalance());
         assertEquals(0, controller.snapshot().getBalance());
@@ -46,7 +39,7 @@ class ShopStartupTest {
         assertTrue(controller.snapshot().getItemQuantities().isEmpty());
         assertTrue(controller.getProducts().isEmpty());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, controller.getSaveStatus());
-        assertFalse(Files.exists(files.getAssetsSavePath()));
+        assertFalse(Files.exists(save));
     }
 
     @Test
@@ -54,11 +47,11 @@ class ShopStartupTest {
         PlayerAssetsState persisted = new PlayerAssetsState(700,
                 Collections.singleton(ShopTestFixtures.UNLOCK),
                 Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 2));
-        files.savePlayerAssets(persisted);
-        byte[] saved = Files.readAllBytes(files.getAssetsSavePath());
+        files.savePlayerAssets(persisted, save);
+        byte[] saved = Files.readAllBytes(save);
         PlayerAssets shared = new PlayerAssets();
 
-        ShopController controller = Core.initializeShop(shared, files);
+        ShopController controller = Core.initializeShop(shared, files, files.loadPlayerAssets(save));
 
         assertEquals(700, shared.getBalance());
         assertTrue(shared.isUnlocked(ShopTestFixtures.UNLOCK));
@@ -71,7 +64,7 @@ class ShopStartupTest {
         shared.restore(new PlayerAssetsState(900, persisted.getUnlockedContentIds(),
                 persisted.getItemQuantities()));
         assertEquals(900, controller.snapshot().getBalance());
-        assertArrayEquals(saved, Files.readAllBytes(files.getAssetsSavePath()));
+        assertArrayEquals(saved, Files.readAllBytes(save));
     }
 
     @Test
@@ -82,27 +75,27 @@ class ShopStartupTest {
                 Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 3));
         shared.restore(before);
         byte[] corrupt = "version=999\nbalance=0\n".getBytes(StandardCharsets.UTF_8);
-        Files.write(files.getAssetsSavePath(), corrupt);
+        Files.write(save, corrupt);
 
-        assertThrows(IOException.class, () -> Core.initializeShop(shared, files));
+        assertThrows(IOException.class, () -> Core.initializeShop(shared, files, files.loadPlayerAssets(save)));
 
         assertEquals(before.getBalance(), shared.getBalance());
         assertEquals(before.getUnlockedContentIds(), shared.snapshot().getUnlockedContentIds());
         assertEquals(before.getItemQuantities(), shared.snapshot().getItemQuantities());
-        assertArrayEquals(corrupt, Files.readAllBytes(files.getAssetsSavePath()));
+        assertArrayEquals(corrupt, Files.readAllBytes(save));
 
         PlayerAssetsState recovered = new PlayerAssetsState(650,
                 Collections.singleton(ShopTestFixtures.UNLOCK),
                 Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 1));
-        files.savePlayerAssets(recovered);
-        byte[] repairedSave = Files.readAllBytes(files.getAssetsSavePath());
+        files.savePlayerAssets(recovered, save);
+        byte[] repairedSave = Files.readAllBytes(save);
 
-        ShopController controller = Core.initializeShop(shared, files);
+        ShopController controller = Core.initializeShop(shared, files, files.loadPlayerAssets(save));
 
         assertEquals(650, shared.getBalance());
         assertTrue(shared.isUnlocked(ShopTestFixtures.UNLOCK));
         assertEquals(1, shared.getItemQuantity(ShopTestFixtures.CONSUMABLE));
         assertEquals(650, controller.snapshot().getBalance());
-        assertArrayEquals(repairedSave, Files.readAllBytes(files.getAssetsSavePath()));
+        assertArrayEquals(repairedSave, Files.readAllBytes(save));
     }
 }
