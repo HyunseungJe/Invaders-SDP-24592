@@ -57,6 +57,11 @@ public final class ShopTestFixtures {
         return new ShopController(assets, save.files, products, save);
     }
 
+    /** Only for the startup test's isolated JVM. */
+    public static ShopController controllerUsingDefaultSave(PlayerAssets assets, FileManager files) {
+        return new ShopController(assets, files, products());
+    }
+
     /** Keeps test and preview writes away from the default save. */
     public static final class SaveFile implements ShopController.AssetSaver {
         private final FileManager files;
