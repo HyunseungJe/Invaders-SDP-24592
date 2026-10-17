@@ -34,4 +34,4 @@ jobs:
           find test -name "*.java" > test-sources.txt
           javac -encoding UTF-8 -cp out:tools/junit-console.jar -d out-test @test-sources.txt
           java -Djava.awt.headless=true -jar tools/junit-console.jar execute \
-            --class-path out:out-test --scan-class-path out-test
+            --class-path out:out-test:res --scan-class-path out-test
