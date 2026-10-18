@@ -52,6 +52,41 @@ class ItemUseServiceTest {
     }
 
     @Test
+    void differentItemsUseOnlyTheirOwnEffectsAndStock() {
+        TestActivation other = new TestActivation();
+        other.onActivate = () -> assertEquals(2, assets.getItemQuantity(OTHER_ID));
+        activations.put(OTHER_ID, other);
+        service = new ItemUseService(assets, catalog, activations);
+        PlayerAssetsState before = assets.snapshot();
+
+        assertEquals(ItemUseResult.SUCCESS, service.tryUse(OTHER_ID));
+        assertEquals(0, activation.validationCalls);
+        assertEquals(0, activation.activationCalls);
+        assertFalse(activation.effectActive);
+        assertEquals(1, other.validationCalls);
+        assertEquals(1, other.activationCalls);
+        assertTrue(other.effectActive);
+        assertEquals(2, assets.getItemQuantity(ITEM_ID));
+        assertEquals(2, assets.getItemQuantity(OTHER_ID));
+        assertEquals(before.getBalance(), assets.getBalance());
+        assertEquals(before.getUnlockedContentIds(), assets.snapshot().getUnlockedContentIds());
+
+        assertEquals(ItemUseResult.SUCCESS, service.tryUse(ITEM_ID));
+        assertEquals(1, activation.validationCalls);
+        assertEquals(1, activation.activationCalls);
+        assertTrue(activation.effectActive);
+        assertEquals(1, other.validationCalls);
+        assertEquals(1, other.activationCalls);
+        assertTrue(other.effectActive);
+        Map<String, Integer> expected = new HashMap<>(before.getItemQuantities());
+        expected.put(ITEM_ID, 1);
+        expected.put(OTHER_ID, 2);
+        assertEquals(expected, assets.snapshot().getItemQuantities());
+        assertEquals(before.getBalance(), assets.getBalance());
+        assertEquals(before.getUnlockedContentIds(), assets.snapshot().getUnlockedContentIds());
+    }
+
+    @Test
     void purchaseAndUseShareAssetsWithoutChargingTwice() {
         assets.removeItem(ITEM_ID, 2);
         PurchaseSystem purchases = new PurchaseSystem(assets, catalog);
@@ -141,6 +176,23 @@ class ItemUseServiceTest {
         activation.activationResult = ItemUseResult.SUCCESS;
         assertEquals(ItemUseResult.SUCCESS, service.tryUse(ITEM_ID));
         assertEquals(1, assets.getItemQuantity(ITEM_ID));
+    }
+
+    @Test
+    void rejectedUseRestoresLastUnitAfterInventoryEntryIsRemoved() {
+        assertTrue(assets.removeItem(ITEM_ID, 1));
+        activation.activationResult = ItemUseResult.EFFECT_REJECTED;
+        activation.onActivate = () -> assertFalse(assets.hasItem(ITEM_ID));
+        PlayerAssetsState before = assets.snapshot();
+
+        assertEquals(ItemUseResult.EFFECT_REJECTED, service.tryUse(ITEM_ID));
+        assertEquals(1, activation.validationCalls);
+        assertEquals(1, activation.stockAtValidation);
+        assertEquals(1, activation.activationCalls);
+        assertEquals(0, activation.stockAtActivation);
+        assertFalse(activation.effectActive);
+        assertTrue(assets.hasItem(ITEM_ID));
+        assertAssetsEqual(before);
     }
 
     @Test
