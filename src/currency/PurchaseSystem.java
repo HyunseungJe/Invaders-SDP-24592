@@ -1,5 +1,16 @@
 package currency;
 
+/**
+ * Manages purchases of inventory items and permanent unlockables.
+ *
+ * <p>Uses PlayerAssets to access and update the player's currency
+ * and item ownership, and ShopCatalog to validate product categories
+ * and retrieve prices.</p>
+ *
+ * <p>Purchase validation and asset updates are handled here.
+ * Saving the updated player state is outside this class's
+ * responsibility.</p>
+ */
 public class PurchaseSystem {
     private final PlayerAssets assets;
     private final ShopCatalog catalog;
@@ -9,6 +20,20 @@ public class PurchaseSystem {
         this.catalog = catalog;
     }
 
+    /**
+     * Purchases a specified quantity of an inventory item.
+     *
+     * <p>Validates the item ID, quantity, product category, total cost,
+     * available currency, and inventory capacity before updating assets.
+     * Currency is deducted only after these validations pass. The item
+     * quantity is then increased. If adding the item fails, the deducted
+     * currency is restored.</p>
+     *
+     * @param itemId the identifier of the inventory item to purchase
+     * @param quantity the quantity to purchase; must be greater than zero
+     * @return SUCCESS if the purchase succeeds, or a result describing
+     *         the reason for failure
+     */
     public PurchaseResult purchaseInventoryItem(String itemId, int quantity) {
         if (itemId == null || itemId.trim().isEmpty()) {
             return PurchaseResult.INVALID_ITEM_ID;
@@ -51,6 +76,19 @@ public class PurchaseSystem {
         return PurchaseResult.SUCCESS;
     }
 
+    /**
+     * Purchases a permanent unlockable item.
+     *
+     * <p>Validates the item ID and product category, then checks whether
+     * the item is already unlocked. If it is already unlocked, the
+     * purchase is rejected without deducting currency. Otherwise, the
+     * item price is deducted from the player's currency. If unlocking
+     * the item fails, the deducted currency is restored.</p>
+     *
+     * @param itemId the identifier of the unlockable item to purchase
+     * @return SUCCESS if the item is unlocked successfully, or a result
+     *         describing the reason for failure
+     */
     public PurchaseResult purchaseUnlockable(String itemId) {
         if (itemId == null || itemId.trim().isEmpty()) {
             return PurchaseResult.INVALID_ITEM_ID;
