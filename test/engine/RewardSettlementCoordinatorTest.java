@@ -1,13 +1,24 @@
 package engine;
 
+import currency.ConsumableActivation;
+import currency.ItemUseResult;
+import currency.ItemUseService;
 import currency.PlayerAssets;
+import currency.PlayerAssetsState;
+import currency.PurchaseResult;
+import currency.PurchaseSystem;
 import currency.RewardSystem;
+import currency.ShopCatalog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -28,7 +39,7 @@ class RewardSettlementCoordinatorTest {
     }
 
     @Test
-    void testSuccessfulSettlementAndSave() {
+    void testSuccessfulSettlementAndSave() throws IOException {
         Path savePath = tempDir.resolve("test_assets.properties");
         RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
 
@@ -39,16 +50,20 @@ class RewardSettlementCoordinatorTest {
         assertEquals(SettlementResult.SUCCESS, result);
         assertEquals(0, rewards.getPendingCurrency());
         assertEquals(50, assets.getBalance());
-        assertTrue(Files.exists(savePath));
+        assertSavedAssets(savePath, assets.snapshot());
     }
 
     @Test
-    void testSettlementFailurePreservesPendingRewards() {
+    void testSettlementFailurePreservesPendingRewards() throws IOException {
         Path savePath = tempDir.resolve("test_assets.properties");
         RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
 
+        PlayerAssetsState previousSave = assets.snapshot();
+        fileManager.savePlayerAssets(previousSave, savePath);
+
         // Force an overflow condition in PlayerAssets
-        assets.restore(new currency.PlayerAssetsState(Integer.MAX_VALUE, java.util.Collections.<String>emptySet(), java.util.Collections.<String, Integer>emptyMap()));
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE,
+                Collections.<String>emptySet(), Collections.<String, Integer>emptyMap())));
         assertTrue(rewards.rewardEnemy("BASIC")); // 10 pending
 
         SettlementResult result = coordinator.processSettlement();
@@ -56,12 +71,13 @@ class RewardSettlementCoordinatorTest {
         assertEquals(SettlementResult.SETTLEMENT_FAILED, result);
         assertEquals(10, rewards.getPendingCurrency()); // Pending rewards preserved
         assertEquals(Integer.MAX_VALUE, assets.getBalance());
+        assertSavedAssets(savePath, previousSave);
     }
 
     @Test
-    void testSaveFailurePreservesSettledAssets() {
-        // Passing the directory itself as the file path will force an IOException during save
-        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, tempDir);
+    void testSaveFailurePreservesSettledAssets() throws IOException {
+        Path savePath = createBlockedSavePath();
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
 
         assertTrue(rewards.rewardEnemy("TANK"));
 
@@ -70,29 +86,148 @@ class RewardSettlementCoordinatorTest {
         assertEquals(SettlementResult.SAVE_FAILED, result);
         assertEquals(0, rewards.getPendingCurrency()); // Settlement succeeded
         assertEquals(50, assets.getBalance()); // Assets are updated in runtime memory
+        assertTrue(Files.isDirectory(savePath));
     }
 
     @Test
-    void testSaveRetryUsesLatestStateWithoutDuplicatingRewards() {
-        // 1. Initial failure setup
-        RewardSettlementCoordinator failingCoordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, tempDir);
+    void testSaveRetryLeavesNewRewardsPending() throws IOException {
+        Path savePath = createBlockedSavePath();
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
         assertTrue(rewards.rewardEnemy("FAST")); // 25 pending
-        assertEquals(SettlementResult.SAVE_FAILED, failingCoordinator.processSettlement());
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
         assertEquals(25, assets.getBalance());
         assertEquals(0, rewards.getPendingCurrency());
 
-        // 2. Add changes after the failed save
-        rewards.rewardEnemy("BASIC"); // 10 pending
+        assertTrue(rewards.rewardEnemy("BASIC")); // New rewards belong to the next settlement
+        unblockSavePath(savePath);
 
-        // 3. Retry save with a valid path
-        Path validPath = tempDir.resolve("retry_assets.properties");
-        RewardSettlementCoordinator validCoordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, validPath);
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(25, assets.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        assertSavedAssets(savePath, assets.snapshot());
 
-        SettlementResult retryResult = validCoordinator.processSettlement();
-
-        assertEquals(SettlementResult.SUCCESS, retryResult);
+        // An explicit new settlement still transfers the remaining rewards exactly once.
+        assertEquals(SettlementResult.SUCCESS, coordinator.processSettlement());
+        assertEquals(35, assets.getBalance());
         assertEquals(0, rewards.getPendingCurrency());
-        assertEquals(35, assets.getBalance()); // 25 from failed save + 10 from retry
-        assertTrue(Files.exists(validPath));
+        assertSavedAssets(savePath, assets.snapshot());
+    }
+
+    @Test
+    void testSaveRetrySucceedsWhenNewRewardsWouldOverflow() throws IOException {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE - 25,
+                Collections.<String>emptySet(), Collections.<String, Integer>emptyMap())));
+        Path savePath = createBlockedSavePath();
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
+        assertTrue(rewards.rewardEnemy("FAST"));
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
+        assertEquals(Integer.MAX_VALUE, assets.getBalance());
+        assertTrue(rewards.rewardEnemy("BASIC"));
+        unblockSavePath(savePath);
+
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(Integer.MAX_VALUE, assets.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        assertSavedAssets(savePath, assets.snapshot());
+    }
+
+    @Test
+    void testSaveRetryUsesLatestAssetsAfterPurchaseAndConsumption() throws IOException {
+        Path savePath = createBlockedSavePath();
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
+        assertTrue(rewards.rewardEnemy("TANK"));
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
+
+        ShopCatalog catalog = new ShopCatalog();
+        assertTrue(catalog.registerInventoryItem("test-item", 5));
+        assertTrue(catalog.registerUnlockable("test-unlock", 10));
+        PurchaseSystem purchases = new PurchaseSystem(assets, catalog);
+        assertEquals(PurchaseResult.SUCCESS, purchases.purchaseInventoryItem("test-item", 2));
+        assertEquals(PurchaseResult.SUCCESS, purchases.purchaseUnlockable("test-unlock"));
+
+        final int[] activationCount = {0};
+        Map<String, ConsumableActivation> activations = new HashMap<String, ConsumableActivation>();
+        activations.put("test-item", new ConsumableActivation() {
+            @Override
+            public ItemUseResult validate() {
+                return ItemUseResult.SUCCESS;
+            }
+
+            @Override
+            public ItemUseResult activate() {
+                activationCount[0]++;
+                return ItemUseResult.SUCCESS;
+            }
+        });
+        ItemUseService items = new ItemUseService(assets, catalog, activations);
+        assertEquals(ItemUseResult.SUCCESS, items.tryUse("test-item"));
+        assertEquals(30, assets.getBalance());
+        assertTrue(assets.isUnlocked("test-unlock"));
+        assertEquals(1, assets.getItemQuantity("test-item"));
+        PlayerAssetsState latestAssets = assets.snapshot();
+        unblockSavePath(savePath);
+
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(30, assets.getBalance());
+        assertTrue(assets.isUnlocked("test-unlock"));
+        assertEquals(1, assets.getItemQuantity("test-item"));
+        assertEquals(1, activationCount[0]);
+        assertEquals(0, rewards.getPendingCurrency());
+        assertSavedAssets(savePath, latestAssets);
+    }
+
+    @Test
+    void testRepeatedSaveFailuresAndRetriesPreserveRewards() throws IOException {
+        Path savePath = createBlockedSavePath();
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
+        assertTrue(rewards.rewardEnemy("FAST"));
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
+        assertTrue(rewards.rewardEnemy("BASIC"));
+
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.retrySave());
+        assertEquals(SettlementResult.SAVE_FAILED, coordinator.retrySave());
+        assertEquals(25, assets.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        unblockSavePath(savePath);
+
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
+        assertEquals(25, assets.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        assertSavedAssets(savePath, assets.snapshot());
+    }
+
+    @Test
+    void testRepeatedSettlementWithoutNewRewardsDoesNotDuplicateCurrency() throws IOException {
+        Path savePath = tempDir.resolve("test_assets.properties");
+        RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
+        assertTrue(rewards.rewardEnemy("FAST"));
+
+        assertEquals(SettlementResult.SUCCESS, coordinator.processSettlement());
+        assertEquals(SettlementResult.SUCCESS, coordinator.processSettlement());
+        assertEquals(25, assets.getBalance());
+        assertEquals(0, rewards.getPendingCurrency());
+        assertSavedAssets(savePath, assets.snapshot());
+    }
+
+    private Path createBlockedSavePath() throws IOException {
+        Path savePath = Files.createDirectory(tempDir.resolve("test_assets.properties"));
+        // A non-empty directory cannot be replaced by the save file.
+        Files.createFile(savePath.resolve("blocker"));
+        return savePath;
+    }
+
+    private void unblockSavePath(Path savePath) throws IOException {
+        Files.delete(savePath.resolve("blocker"));
+        Files.delete(savePath);
+    }
+
+    private void assertSavedAssets(Path savePath, PlayerAssetsState expected) throws IOException {
+        assertTrue(Files.isRegularFile(savePath));
+        PlayerAssetsState saved = fileManager.loadPlayerAssets(savePath);
+        assertEquals(expected.getBalance(), saved.getBalance());
+        assertEquals(expected.getUnlockedContentIds(), saved.getUnlockedContentIds());
+        assertEquals(expected.getItemQuantities(), saved.getItemQuantities());
     }
 }

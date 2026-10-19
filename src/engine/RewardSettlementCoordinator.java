@@ -33,9 +33,9 @@ public class RewardSettlementCoordinator {
      * Settles accumulated rewards and saves the updated asset state to disk.
      *
      * Rejects settlement if the asset balance overflows, preserving the pending rewards.
-     * If saving fails after a successful settlement, the rewards remain in the balance
-     * to prevent duplication on retry. Subsequent calls with no new rewards will
-     * bypass settlement and directly retry saving the latest snapshot.
+     * If saving fails after a successful settlement, the rewards remain in the balance.
+     * Use retrySave() to retry persistence without settling newly accumulated rewards.
+     * Calling this method again requests a new settlement before saving.
      *
      * @return SUCCESS if rewards were settled and saved; SETTLEMENT_FAILED if the transfer to assets was rejected; SAVE_FAILED if disk persistence failed
      */
@@ -44,6 +44,21 @@ public class RewardSettlementCoordinator {
             return SettlementResult.SETTLEMENT_FAILED;
         }
 
+        return saveLatestAssets();
+    }
+
+    /**
+     * Saves the latest shared assets without transferring or clearing pending rewards.
+     * Captures a fresh snapshot on every call, including changes made after a failed save.
+     * A failed retry leaves both runtime assets and pending rewards unchanged.
+     *
+     * @return SUCCESS if the latest snapshot was saved; SAVE_FAILED if disk persistence failed
+     */
+    public SettlementResult retrySave() {
+        return saveLatestAssets();
+    }
+
+    private SettlementResult saveLatestAssets() {
         PlayerAssetsState snapshot = playerAssets.snapshot();
 
         try {
