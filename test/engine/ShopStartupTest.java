@@ -1,8 +1,11 @@
 package engine;
 
+import currency.ConsumableActivation;
+import currency.ItemUseResult;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
+import currency.RewardSystem;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +18,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import shop.ShopController;
+import shop.ItemUseController;
 import shop.ShopTestFixtures;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -135,6 +139,101 @@ class ShopStartupTest {
         assertTrue(restored.isUnlocked(ShopTestFixtures.UNLOCK));
     }
 
+    @Test
+    void successfulConsumptionUsesDefaultSaveAndRestoresOnStartup() throws Exception {
+        if (!isolatedProcess) {
+            runIsolated("consumption");
+            return;
+        }
+        PlayerAssets shared = ShopTestFixtures.fundedAssets();
+        ShopController controller = new ShopController(shared, files, ShopTestFixtures.products());
+        final int[] activations = { 0 };
+        ConsumableActivation effect = new ConsumableActivation() {
+            @Override
+            public ItemUseResult validate() {
+                return ItemUseResult.SUCCESS;
+            }
+
+            @Override
+            public ItemUseResult activate() {
+                activations[0]++;
+                return ItemUseResult.SUCCESS;
+            }
+        };
+        ItemUseController uses = controller.createItemUseController(
+                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, effect));
+        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.CONSUMABLE));
+        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.CONSUMABLE));
+        assertEquals(ItemUseResult.SUCCESS, uses.tryUse(ShopTestFixtures.CONSUMABLE));
+        assertEquals(ShopController.SaveStatus.SAVED, uses.getSaveStatus());
+        assertEquals(800, files.loadPlayerAssets().getBalance());
+        assertEquals(1, files.loadPlayerAssets().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        assertTrue(uses.retrySave());
+        assertEquals(1, activations[0]);
+
+        PlayerAssets restored = new PlayerAssets();
+        ShopController reopened = Core.initializeShop(restored, files);
+        assertEquals(800, reopened.snapshot().getBalance());
+        assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+    }
+
+    @Test
+    void consumptionSaveRetryIncludesSettledRewardsAndKeepsNewRewardsPending() throws Exception {
+        if (!isolatedProcess) {
+            runIsolated("consumption-reward-retry");
+            return;
+        }
+        PlayerAssets shared = new PlayerAssets();
+        assertTrue(shared.restore(new PlayerAssetsState(1000, Collections.<String>emptySet(),
+                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 2))));
+        ShopController controller = new ShopController(shared, files, ShopTestFixtures.products());
+        RewardSystem rewards = new RewardSystem(shared);
+        RewardSettlementCoordinator settlement = new RewardSettlementCoordinator(rewards, shared, files);
+        final int[] activations = { 0 };
+        ConsumableActivation effect = new ConsumableActivation() {
+            @Override
+            public ItemUseResult validate() {
+                return ItemUseResult.SUCCESS;
+            }
+
+            @Override
+            public ItemUseResult activate() {
+                activations[0]++;
+                return ItemUseResult.SUCCESS;
+            }
+        };
+        ItemUseController uses = controller.createItemUseController(
+                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, effect));
+
+        Files.createDirectory(save);
+        Path blocker = Files.createFile(save.resolve("blocker"));
+        assertEquals(ItemUseResult.SUCCESS, uses.tryUse(ShopTestFixtures.CONSUMABLE));
+        assertEquals(1, shared.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertEquals(ShopController.SaveStatus.FAILED, uses.getSaveStatus());
+        assertFalse(uses.retrySave());
+        Files.delete(blocker);
+        Files.delete(save);
+
+        assertTrue(rewards.rewardEnemy("TANK"));
+        assertEquals(SettlementResult.SUCCESS, settlement.processSettlement());
+        assertEquals(ShopController.SaveStatus.FAILED, uses.getSaveStatus());
+        assertTrue(rewards.rewardEnemy("BASIC"));
+        assertTrue(uses.retrySave());
+        assertTrue(uses.retrySave());
+
+        assertEquals(ShopController.SaveStatus.SAVED, uses.getSaveStatus());
+        assertEquals(1050, shared.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        assertEquals(1, activations[0]);
+        PlayerAssetsState persisted = files.loadPlayerAssets();
+        assertEquals(1050, persisted.getBalance());
+        assertEquals(1, persisted.getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        PlayerAssets restored = new PlayerAssets();
+        ShopController reopened = Core.initializeShop(restored, files);
+        assertEquals(1050, reopened.snapshot().getBalance());
+        assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+    }
+
     private void runIsolated(String scenario) throws Exception {
         // Default saves sit beside the compiled classes, so a new working directory alone is not enough.
         Path source = codeLocation(FileManager.class);
@@ -199,6 +298,12 @@ class ShopStartupTest {
             break;
         case "purchase":
             test.purchasesUseDefaultSaveAndRestoreOnStartup();
+            break;
+        case "consumption":
+            test.successfulConsumptionUsesDefaultSaveAndRestoresOnStartup();
+            break;
+        case "consumption-reward-retry":
+            test.consumptionSaveRetryIncludesSettledRewardsAndKeepsNewRewardsPending();
             break;
         default:
             throw new IllegalArgumentException("Unknown storage test: " + args[1]);
