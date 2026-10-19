@@ -283,20 +283,46 @@ public final class FileManager {
 	public static final String DEFAULT_ASSETS_SAVE_PATH = ASSETS_FILENAME;
 	private static final String FORMAT_VERSION = "1";
 
+
 	/**
-	 * Saves the player asset state in the same directory as high scores.
+	 * Saves the provided player asset snapshot to the default save path.
+	 *
+	 * <p>This method does not grant rewards or modify in-memory assets.
+	 * It delegates saving to {@link #savePlayerAssets(PlayerAssetsState, Path)}.
+	 *
+	 * @param state the player asset snapshot to save (must not be null)
+	 * @throws IllegalArgumentException if state is null
+	 * @throws IOException if saving fails
 	 */
+
 	public void savePlayerAssets(final PlayerAssetsState state) throws IOException {
 		savePlayerAssets(state, resolveStoragePath(ASSETS_FILENAME));
 	}
 
+
 	/**
-	 * Saves the player asset state using atomic replacement to preserve existing saves upon failure.
+	 * Saves the provided player asset snapshot using atomic replacement.
 	 *
-	 * @param state      the player assets state to save
-	 * @param targetPath destination file path
+	 * <p>Saved data includes the player's balance, permanently unlocked
+	 * content IDs, and owned item quantities. Active buffs and remaining
+	 * effect durations are not included.
+	 *
+	 * <p>This method only writes the provided snapshot. It does not
+	 * grant rewards or modify in-memory player assets.
+	 * If saving fails after settlement, already settled assets remain
+	 * unchanged in memory. Retrying a save does not grant rewards again.
+	 * To save the latest asset state, the caller must provide a new snapshot.
+	 *
+	 * <p>Data is first written to a temporary file and then replaces
+	 * the target atomically. If atomic replacement is unsupported,
+	 * saving fails rather than overwriting the existing file non-atomically.
+	 *
+	 * @param state the player asset snapshot to save (must not be null)
+	 * @param targetPath destination path, or null to use the default save path
+	 * @throws IllegalArgumentException if state is null
 	 * @throws IOException if saving fails
 	 */
+
 	public void savePlayerAssets(final PlayerAssetsState state, final Path targetPath) throws IOException {
 		if (state == null) {
 			throw new IllegalArgumentException("PlayerAssetsState cannot be null.");
@@ -351,9 +377,17 @@ public final class FileManager {
 		}
 	}
 
+
 	/**
-	 * Loads the player asset state from the same directory as high scores.
+	 * Loads the player asset state from the default save path.
+	 *
+	 * <p>If the save file does not exist, an empty default state is returned.
+	 * If the file exists but is corrupted or malformed, an IOException is thrown.
+	 *
+	 * @return the loaded PlayerAssetsState, or an empty default state if no save exists
+	 * @throws IOException if the save file is invalid or cannot be read
 	 */
+
 	public PlayerAssetsState loadPlayerAssets() throws IOException {
 		return loadPlayerAssets(resolveStoragePath(ASSETS_FILENAME));
 	}
@@ -400,13 +434,26 @@ public final class FileManager {
 		return decoded.toString();
 	}
 
+
 	/**
 	 * Loads the player asset state from a specific path with strict validation.
 	 *
-	 * @param sourcePath file path to load from
-	 * @return the loaded PlayerAssetsState, or default empty state if file does not exist
-	 * @throws IOException if the file exists but is corrupted, empty, or malformed
+	 * <p>If sourcePath is null, the default save path is used.
+	 * Only a missing save file produces the default state with zero balance,
+	 * no unlocked content, and no owned items.
+	 *
+	 * <p>Existing save files are validated for format version, required
+	 * properties, balance, asset identifiers, and item quantities.
+	 * Empty, corrupted, or malformed files are rejected instead of
+	 * silently being replaced with default data.
+	 *
+	 * <p>This method only reads the saved data and does not modify the file.
+	 *
+	 * @param sourcePath file path to load from, or null to use the default save path
+	 * @return the loaded PlayerAssetsState, or an empty default state if no file exists
+	 * @throws IOException if the save file is invalid or cannot be read
 	 */
+
 	public PlayerAssetsState loadPlayerAssets(final Path sourcePath) throws IOException {
 		Path target = (sourcePath != null) ? sourcePath : resolveStoragePath(ASSETS_FILENAME);
 

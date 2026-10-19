@@ -11,8 +11,10 @@ import java.util.Map;
  *
  * <p>Responsibility split:
  * <ul>
- *   <li>Other teams detect enemy defeats and level completion and report them
- *       to this class. This class only decides how much each report is worth.</li>
+ *   <li>Other teams publish enemy defeat and level completion events.
+ *       HanCode's event listeners receive these events and forward the
+ *       relevant information to RewardSystem, which calculates the
+ *       corresponding rewards.</li>
  *   <li>Rewards are added to a pending amount. The player's balance changes
  *       only when {@link #settle()} succeeds.</li>
  *   <li>This class does not know whether a stage succeeded or failed. The caller
