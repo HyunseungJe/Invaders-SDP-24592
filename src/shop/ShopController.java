@@ -40,7 +40,15 @@ public final class ShopController {
         this(assets, fileManager, ShopProducts.availableProducts());
     }
 
-    ShopController(PlayerAssets assets, final FileManager fileManager, List<ShopProduct> definitions) {
+    /**
+     * Creates a shop with product definitions supplied during session initialization.
+     * Copies and validates products without loading or saving the shared assets.
+     *
+     * @throws IllegalArgumentException if a dependency or product is null, or product
+     *         definitions contain an invalid or duplicate registration
+     */
+    public ShopController(PlayerAssets assets, final FileManager fileManager,
+            List<ShopProduct> definitions) {
         this(assets, fileManager, definitions, new AssetSaver() {
             @Override
             public void save(PlayerAssetsState state) throws IOException {

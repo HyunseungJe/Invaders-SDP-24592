@@ -378,6 +378,19 @@ public final class Core {
 	}
 
 	/**
+	 * Returns the initialized session controller without creating or reloading assets.
+	 *
+	 * @return The existing shop controller for this application session.
+	 * @throws IllegalStateException if startup has not initialized the shop controller
+	 */
+	public static ShopController getShopController() {
+		if (shopController == null) {
+			throw new IllegalStateException("Player assets have not been initialized.");
+		}
+		return shopController;
+	}
+
+	/**
 	 * Controls creation of new cooldowns.
 	 *
 	 * @param milliseconds
