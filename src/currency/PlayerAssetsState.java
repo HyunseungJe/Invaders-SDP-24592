@@ -16,12 +16,13 @@ public final class PlayerAssetsState {
     private final Map<String, Integer> itemQuantities;
 
     /**
-     * Constructs a PlayerAssetsState snapshot with defensive copying and invariant validation.
+     * Creates an immutable asset snapshot with validated defensive copies.
      *
-     * @param balance              the non-negative currency balance
-     * @param unlockedContentIds   set of unlocked content IDs (non-null, non-blank)
-     * @param itemQuantities       map of item IDs to positive quantities (non-null, non-blank keys)
-     * @throws IllegalArgumentException if balance < 0, or any ID is invalid, or any quantity <= 0
+     * @param balance the non-negative currency balance
+     * @param unlockedContentIds unlocked IDs; null set is treated as empty
+     * @param itemQuantities item quantities; null map is treated as empty
+     * @throws IllegalArgumentException if balance is negative, an ID is null
+     * or blank, or a quantity is null or non-positive
      */
     public PlayerAssetsState(int balance, Set<String> unlockedContentIds, Map<String, Integer> itemQuantities) {
         if (balance < 0) {
@@ -60,14 +61,29 @@ public final class PlayerAssetsState {
         this.itemQuantities = Collections.unmodifiableMap(copyItems);
     }
 
+    /**
+     * Returns the currency balance in this snapshot.
+     *
+     * @return the current balance
+     */
     public int getBalance() {
         return balance;
     }
 
+    /**
+     * Returns the unlocked content IDs in this snapshot.
+     *
+     * @return an unmodifiable set of unlocked IDs; never null
+     */
     public Set<String> getUnlockedContentIds() {
         return unlockedContentIds;
     }
 
+    /**
+     * Returns the item quantities in this snapshot.
+     *
+     * @return an unmodifiable map of item IDs to quantities; never null
+     */
     public Map<String, Integer> getItemQuantities() {
         return itemQuantities;
     }
