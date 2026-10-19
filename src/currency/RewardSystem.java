@@ -11,10 +11,11 @@ import java.util.Map;
  *
  * <p>Responsibility split:
  * <ul>
- *   <li>Other teams publish enemy defeat and level completion events.
- *       HanCode's event listeners receive these events and forward the
- *       relevant information to RewardSystem, which calculates the
- *       corresponding rewards.</li>
+ *   <li>The intended integration is for other teams to publish enemy
+ *       defeat and level completion events. HanCode's listeners would
+ *       receive these events and forward the relevant information to
+ *       RewardSystem for reward calculation. This reward event wiring
+ *       has not yet been verified as implemented.</li>
  *   <li>Rewards are added to a pending amount. The player's balance changes
  *       only when {@link #settle()} succeeds.</li>
  *   <li>This class does not know whether a stage succeeded or failed. The caller

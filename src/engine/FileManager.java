@@ -439,18 +439,22 @@ public final class FileManager {
 	 * Loads the player asset state from a specific path with strict validation.
 	 *
 	 * <p>If sourcePath is null, the default save path is used.
-	 * Only a missing save file produces the default state with zero balance,
-	 * no unlocked content, and no owned items.
+	 * When Files.exists() returns false, this method returns the default
+	 * state with zero balance, no unlocked content, and no owned items.
+	 * This may occur when the file is missing or its existence cannot be
+	 * determined, including certain file access errors.
 	 *
 	 * <p>Existing save files are validated for format version, required
 	 * properties, balance, asset identifiers, and item quantities.
-	 * Empty, corrupted, or malformed files are rejected instead of
-	 * silently being replaced with default data.
+	 * When an existing save file is detected, empty, corrupted, or malformed
+	 * contents are rejected with an IOException.
+	 * However, failures to determine file existence may result in the
+	 * default state rather than an IOException.
 	 *
 	 * <p>This method only reads the saved data and does not modify the file.
 	 *
 	 * @param sourcePath file path to load from, or null to use the default save path
-	 * @return the loaded PlayerAssetsState, or an empty default state if no file exists
+	 * @return the loaded PlayerAssetsState, or an empty default state if Files.exists() returns false
 	 * @throws IOException if the save file is invalid or cannot be read
 	 */
 
