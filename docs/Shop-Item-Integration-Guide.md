@@ -4,7 +4,7 @@
 
 This document explains how the Shop system and Item system are connected, how purchased items are managed, and how player assets are shared across the game.
 
-The asset and purchase system manages the player's currency, inventory, permanent unlocks, purchase validation, and persistence connection. The Item system is responsible for applying the actual effects of items during gameplay.
+The asset and purchase system manages the player's currency, inventory, permanent unlocks, purchase validation, and persistence connection. The Item team is responsible for applying the actual effects of items during gameplay.
 
 The goal is to clarify how these responsibilities work together so that the Shop and Item systems can use the same player asset data consistently.
 
@@ -141,13 +141,18 @@ When a player attempts to use a consumable, the intended flow is:
 1. The Item system requests the use of an item through the item-usage service.
 2. The service checks the player's inventory through `PlayerAssets`.
 3. If the item is unavailable, usage is rejected and the inventory remains unchanged.
-4. If the item is available, the service coordinates the gameplay effect with the Item system.
-5. When usage succeeds, the item's quantity is decreased.
+4. If the item is available, the service validates the usage and reserves one unit of the item.
+5. The service then activates the gameplay effect through the Item system. When activation succeeds, the reserved unit stays consumed.
 6. The updated asset state is made available for persistence.
 
 The Item team is responsible for implementing the actual effect, such as healing the player or applying a temporary ability. Our team is responsible for preparing the service that checks availability, manages inventory changes, and connects those changes to player asset state and persistence.
 
-The two teams must coordinate the success and failure conditions for item usage. An item should not be consumed when its effect has failed to apply. The implementation must define how effect failures are reported and how inventory changes are handled to prevent inconsistent states.
+The two teams must coordinate the success and failure conditions for item usage. Failures are handled differently depending on the case:
+- Ordinary rejection: the reserved stock is restored.
+- Unexpected activation failure: the reservation is retained, and further use of the item is blocked until the asset state and effect state have been reconciled.
+
+The implementation must define how effect failures are reported so that these two cases can be told apart.
+
 
 ## 8. Shared Player Assets
 
@@ -179,7 +184,14 @@ After a purchase or successful item usage, the updated state can be saved so tha
 
 Purchase processing and persistence must remain separate responsibilities. A successful purchase should not be repeated simply because saving failed. Retrying persistence should operate on the updated state without deducting the purchase price again or increasing the inventory a second time.
 
-When the game loads saved data, the asset state should be restored so that the Shop and Item systems can continue using the player's existing balance, inventory, and unlocks.
+**Integration entry points**
+
+- `Core.getShopController()` is the integration entry point for the Shop system.
+- `createItemUseController(...)` is the integration entry point for item usage.
+
+**Saving after item usage**
+
+A successful `tryUse()` call automatically attempts to save the updated assets. Usage success and save success are separate: an item can be used successfully even if the save fails. Callers should check `getSaveStatus()` and, if the save did not succeed, call `retrySave()`. `retrySave()` saves the latest assets without consuming another item and without replaying the effect.
 
 ## 10. Team Responsibilities
 
