@@ -138,20 +138,21 @@ Purchasing an item does not automatically apply its gameplay effect. The purchas
 
 When a player attempts to use a consumable, the intended flow is:
 
-1. The Item system requests the use of an item through the item-usage service.
-2. The service checks the player's inventory through `PlayerAssets`.
-3. If the item is unavailable, usage is rejected and the inventory remains unchanged.
-4. If the item is available, the service validates the usage and reserves one unit of the item.
-5. The service then activates the gameplay effect through the Item system. When activation succeeds, the reserved unit stays consumed.
-6. The updated asset state is made available for persistence.
+1. The Item system requests use through `ItemUseController.tryUse(itemId)`.
+2. `ItemUseService` validates the item ID and checks that the catalog and activation adapter support it.
+3. The service calls `validate()`. An ordinary rejection returns without changing inventory.
+4. After successful validation, the service reserves one unit through `PlayerAssets`. If no stock is available, it returns `OUT_OF_STOCK` without activating the effect.
+5. The service calls `activate()`. On `SUCCESS`, the reserved unit remains consumed.
+6. On `SUCCESS`, `ItemUseController` attempts to save the updated assets. Callers check the save result separately with `getSaveStatus()`.
 
 The Item team is responsible for implementing the actual effect, such as healing the player or applying a temporary ability. Our team is responsible for preparing the service that checks availability, manages inventory changes, and connects those changes to player asset state and persistence.
 
-The two teams must coordinate the success and failure conditions for item usage. Failures are handled differently depending on the case:
-- Ordinary rejection: the reserved stock is restored.
-- Unexpected activation failure: the reservation is retained, and further use of the item is blocked until the asset state and effect state have been reconciled.
+Failures are handled according to the `ConsumableActivation` contract:
 
-The implementation must define how effect failures are reported so that these two cases can be told apart.
+- Ordinary rejection: validation rejection leaves inventory unchanged. If activation rejects after a unit has been reserved, that unit is restored.
+- Unexpected activation failure: the reserved unit is retained, and the failed `ItemUseService` blocks all subsequent item-use requests through its `ItemUseController`, including requests for other items. Reconciling assets and effects does not reset the failed instance. Create a replacement `ItemUseController` through the shared `ShopController` only after reconciliation.
+
+Ordinary rejections are returned as `ItemUseResult` values; unexpected failures are thrown.
 
 
 ## 8. Shared Player Assets
