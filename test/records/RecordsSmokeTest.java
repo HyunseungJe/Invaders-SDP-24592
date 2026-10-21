@@ -270,10 +270,18 @@ private static void testProfilePersistence() throws Exception {
 private static void testShutdownHookFlush() throws Exception {
 		Path profile = testDirectory("shutdown-probe").resolve("profile.properties")
 				.toAbsolutePath();
-		String javaExecutable = Paths.get(System.getProperty("java.home"), "bin", "java.exe").toString();
-		Process child = new ProcessBuilder(javaExecutable, "-Djava.awt.headless=true", "-cp",
+		String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
+		String javaExecutable = Paths.get(System.getProperty("java.home"), "bin", executable).toString();
+		List<String> command = new ArrayList<>();
+		command.add(javaExecutable);
+		String coverageAgent = System.getProperty("invaders.test.coverageAgent");
+		if (coverageAgent != null && !coverageAgent.isBlank()) {
+			command.add(coverageAgent);
+		}
+		java.util.Collections.addAll(command, "-Djava.awt.headless=true", "-cp",
 				System.getProperty("java.class.path"), RecordsSmokeTest.class.getName(),
-				"--shutdown-probe", profile.toString()).redirectErrorStream(true).start();
+				"--shutdown-probe", profile.toString());
+		Process child = new ProcessBuilder(command).redirectErrorStream(true).start();
 		if (!child.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) {
 			child.destroyForcibly();
 			throw new AssertionError("shutdown probe timed out");

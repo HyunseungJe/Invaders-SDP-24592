@@ -12,8 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -252,15 +256,31 @@ class ShopStartupTest {
             Files.copy(source, classes);
         }
         String classpath = classes + File.pathSeparator + codeLocation(ShopStartupTest.class);
-        for (String entry : System.getProperty("java.class.path").split(File.pathSeparator)) {
+        String runtimeClasspath = System.getProperty("invaders.test.classpath",
+                System.getProperty("java.class.path"));
+        for (String entry : runtimeClasspath.split(File.pathSeparator)) {
             classpath += File.pathSeparator + Paths.get(entry).toAbsolutePath();
         }
         String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
         Path java = Paths.get(System.getProperty("java.home"), "bin", executable);
         Path log = temp.resolve("process.log");
-        Process process = new ProcessBuilder(java.toString(), "-Djava.awt.headless=true",
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        String coverageAgent = System.getProperty("invaders.test.coverageAgent");
+        if (coverageAgent != null && !coverageAgent.isBlank()) {
+            Matcher destination = Pattern.compile("destfile=([^,]+)").matcher(coverageAgent);
+            if (!destination.find()) {
+                throw new IllegalStateException("JaCoCo agent must specify a coverage destination.");
+            }
+            Path coverageFile = Paths.get(destination.group(1)).toAbsolutePath().normalize();
+            String childDestination = temp.toAbsolutePath().normalize().relativize(coverageFile).toString();
+            // Relative paths avoid Windows JDK 17 agent-option encoding issues in Korean paths.
+            command.add(destination.replaceFirst(Matcher.quoteReplacement("destfile=" + childDestination)));
+        }
+        Collections.addAll(command, "-Djava.awt.headless=true",
                 "-Dfile.encoding=UTF-8", "-cp", classpath, ShopStartupTest.class.getName(),
-                temp.toString(), scenario)
+                temp.toString(), scenario);
+        Process process = new ProcessBuilder(command)
                 .directory(temp.toFile()).redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
             assertTrue(process.waitFor(30, TimeUnit.SECONDS), "Isolated storage test timed out.");

@@ -63,12 +63,17 @@ public final class FileManager {
 	}
 
 	/**
-	 * Resolves a file path relative to the application's code/JAR execution directory.
+	 * Resolves a file in invaders.storageDir when supplied, otherwise beside the
+	 * application's code/JAR. Gradle run supplies a directory outside build/.
 	 *
 	 * @param filename file name to resolve
 	 * @return Path pointing to the file in the application storage directory
 	 */
 	static Path resolveStoragePath(final String filename) {
+		String storageDirectory = System.getProperty("invaders.storageDir");
+		if (storageDirectory != null && !storageDirectory.trim().isEmpty()) {
+			return Paths.get(storageDirectory).toAbsolutePath().normalize().resolve(filename);
+		}
 		try {
 			Path codePath = Paths.get(FileManager.class.getProtectionDomain()
 					.getCodeSource().getLocation().toURI());

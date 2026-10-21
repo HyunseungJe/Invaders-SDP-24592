@@ -46,6 +46,28 @@ class FileManagerTest {
     }
 
     @Test
+    @DisplayName("Configured storage directory keeps scores and assets outside build output")
+    void testConfiguredStorageDirectory() throws IOException {
+        String previous = System.getProperty("invaders.storageDir");
+        try {
+            System.setProperty("invaders.storageDir", tempDir.toString());
+            assertEquals(tempDir.resolve("scores"), FileManager.resolveStoragePath("scores"));
+            assertEquals(savePath, FileManager.resolveStoragePath(FileManager.ASSETS_FILENAME));
+            PlayerAssetsState state = new PlayerAssetsState(125,
+                    java.util.Collections.emptySet(), java.util.Collections.emptyMap());
+            fileManager.savePlayerAssets(state);
+            assertTrue(Files.exists(savePath));
+            assertEquals(125, fileManager.loadPlayerAssets().getBalance());
+        } finally {
+            if (previous == null) {
+                System.clearProperty("invaders.storageDir");
+            } else {
+                System.setProperty("invaders.storageDir", previous);
+            }
+        }
+    }
+
+    @Test
     @DisplayName("loadPlayerAssets throws IOException when unlocked content ID has malformed URL encoding")
     void testLoadMalformedEncodedUnlockIdThrowsIOException() throws IOException {
         String malformedData = "version=1\nbalance=100\nunlockedContentIds=VALID_SHIP,%ZZ_INVALID\nitemQuantities=ITEM_A:1\n";
