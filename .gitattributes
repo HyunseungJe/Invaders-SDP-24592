@@ -1,5 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+*.gradle text eol=lf
+*.java text eol=lf
+.editorconfig text eol=lf
+.run/*.run.xml text eol=lf
+gradle.properties text eol=lf
+gradle/wrapper/gradle-wrapper.jar binary
 res/font.ttf -text
 res/font-license/*.txt -text whitespace=cr-at-eol
 

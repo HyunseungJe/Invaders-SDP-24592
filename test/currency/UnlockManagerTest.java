@@ -27,7 +27,7 @@ class UnlockManagerTest {
     void testUnlockAlreadyUnlockedContent() {
         assertTrue(unlockManager.unlock("STAGE_01"));
         // Second attempt should return false
-        assertFalse(unlockManager.unlock("STAGE_01")); 
+        assertFalse(unlockManager.unlock("STAGE_01"));
         assertTrue(unlockManager.isUnlocked("STAGE_01"));
     }
 

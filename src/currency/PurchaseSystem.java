@@ -69,8 +69,8 @@ public class PurchaseSystem {
 
         // Defensive fallback: attempt to grant the item. Rollback if unexpected failure occurs.
         if (!assets.addItem(itemId, quantity)) {
-            assets.addCurrency(totalCost); 
-            return PurchaseResult.INTEGER_OVERFLOW_DETECTED; 
+            assets.addCurrency(totalCost);
+            return PurchaseResult.INTEGER_OVERFLOW_DETECTED;
         }
 
         return PurchaseResult.SUCCESS;
@@ -111,7 +111,7 @@ public class PurchaseSystem {
         // Attempt to grant the unlock. Rollback if unexpected failure occurs.
         if (!assets.unlock(itemId)) {
             assets.addCurrency(price);
-            return PurchaseResult.ALREADY_UNLOCKED; 
+            return PurchaseResult.ALREADY_UNLOCKED;
         }
 
         return PurchaseResult.SUCCESS;

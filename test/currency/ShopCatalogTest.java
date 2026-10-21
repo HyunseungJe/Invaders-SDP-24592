@@ -17,7 +17,7 @@ class ShopCatalogTest {
         assertFalse(catalog.registerInventoryItem("free_potion", 0));
         assertFalse(catalog.registerUnlockable("free_stage", 0));
         assertFalse(catalog.registerInventoryItem("cursed_item", -50));
-        
+
         // Ensure catalog remained unchanged
         assertEquals(-1, catalog.getPrice("free_potion"));
     }
@@ -25,11 +25,11 @@ class ShopCatalogTest {
     @Test
     void testDuplicateRegistrationPreservesOriginal() {
         assertTrue(catalog.registerInventoryItem("potion", 100));
-        
+
         // Attempt to overwrite with a different price and category
         assertFalse(catalog.registerUnlockable("potion", 200));
         assertFalse(catalog.registerInventoryItem("potion", 50));
-        
+
         // Assert original state is preserved
         assertEquals(100, catalog.getPrice("potion"));
         assertTrue(catalog.isInventoryItem("potion"));

@@ -2,9 +2,9 @@ package engine;
 
 /**
  * Imposes a cooldown period between two actions.
- * 
+ *
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
- * 
+ *
  */
 public class Cooldown {
 
@@ -20,7 +20,7 @@ public class Cooldown {
 	/**
 	 * Constructor, established the time until the action can be performed
 	 * again.
-	 * 
+	 *
 	 * @param milliseconds
 	 *            Time until cooldown period is finished.
 	 * @throws IllegalArgumentException
@@ -39,7 +39,7 @@ public class Cooldown {
 	/**
 	 * Constructor, established the time until the action can be performed
 	 * again, with a variation of +/- variance.
-	 * 
+	 *
 	 * @param milliseconds
 	 *            Base time until cooldown period is finished.
 	 * @param variance
@@ -65,7 +65,7 @@ public class Cooldown {
 
 	/**
 	 * Checks if the cooldown is finished.
-	 * 
+	 *
 	 * @return Cooldown state.
 	 */
 	public final boolean checkFinished() {

@@ -103,12 +103,12 @@ public class ShopCatalog {
         if (price <= 0 || isInvalidId(itemId)) {
             return false;
         }
-        
+
         // Reject duplicate registrations to preserve existing price and category
         if (catalog.containsKey(itemId)) {
             return false;
         }
-        
+
         catalog.put(itemId, new Product(price, category));
         return true;
     }

@@ -199,4 +199,3 @@ class FileManagerTest {
         assertEquals(items, loaded.getItemQuantities());
     }
 }
-

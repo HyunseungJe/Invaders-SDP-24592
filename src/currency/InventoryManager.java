@@ -70,7 +70,7 @@ public class InventoryManager {
         }
 
         int currentQuantity = getQuantity(itemId);
-        
+
         // Prevent integer overflow
         if (Integer.MAX_VALUE - currentQuantity < quantity) {
             return false;

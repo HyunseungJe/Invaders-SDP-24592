@@ -8,9 +8,9 @@ import java.awt.event.MouseMotionListener;
 
 /**
  * Manages keyboard input for the provided screen.
- * 
+ *
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
- * 
+ *
  */
 public final class InputManager implements KeyListener, MouseListener, MouseMotionListener {
 
@@ -39,7 +39,7 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	/**
 	 * Returns shared instance of InputManager.
-	 * 
+	 *
 	 * @return Shared instance of InputManager.
 	 */
 	protected static InputManager getInstance() {
@@ -50,7 +50,7 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	/**
 	 * Returns true if the provided key is currently pressed.
-	 * 
+	 *
 	 * @param keyCode
 	 *                Key number to check.
 	 * @return Key state.
@@ -71,7 +71,7 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	/**
 	 * Changes the state of the key to pressed.
-	 * 
+	 *
 	 * @param key
 	 *            Key pressed.
 	 */
@@ -87,7 +87,7 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	/**
 	 * Changes the state of the key to not pressed.
-	 * 
+	 *
 	 * @param key
 	 *            Key released.
 	 */
@@ -99,7 +99,7 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	/**
 	 * Does nothing.
-	 * 
+	 *
 	 * @param key
 	 *            Key typed.
 	 */

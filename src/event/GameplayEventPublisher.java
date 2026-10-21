@@ -14,7 +14,7 @@ import java.util.logging.Logger;
  *
  * <p>Events must implement {@link GameplayEvent}. Listeners are matched
  * using the event's exact concrete class.</p>
- * 
+ *
  * <p>Delivery is synchronous. Listener failures are logged without
  * stopping delivery to other listeners.</p>
  *
@@ -45,7 +45,7 @@ public final class GameplayEventPublisher {
 
     /**
      * Registers a listener for one concrete event type.
-     * 
+     *
      * 하나의 구체적인 이벤트 타입에 대해 리스너를 등록합니다.
      */
     public <T extends GameplayEvent> void subscribe(
@@ -73,7 +73,7 @@ public final class GameplayEventPublisher {
 
     /**
      * Removes a previously registered listener.
-     * 
+     *
      * 이전에 등록된 리스너를 제거합니다.
      */
     public <T extends GameplayEvent> void unsubscribe(
@@ -91,13 +91,13 @@ public final class GameplayEventPublisher {
 
         eventListeners.remove(listener);
 
-        if (eventListeners.isEmpty()) 
+        if (eventListeners.isEmpty())
             this.listeners.remove(eventType);
     }
 
     /**
      * Publishes an event to listeners registered for its concrete class.
-     * 
+     *
      * 해당 이벤트의 구체적인 클래스에 등록된 리스너들에게 이벤트를 전달합니다.
      */
     public <T extends GameplayEvent> void publish(final T event) {
@@ -120,7 +120,7 @@ public final class GameplayEventPublisher {
                 notifyListener(listener, event);
             } catch (RuntimeException exception) {
                 LOGGER.log(
-                    Level.SEVERE, "Gameplay event listener failed for " 
+                    Level.SEVERE, "Gameplay event listener failed for "
                     + event.getClass().getName(), exception);
             }
         }
@@ -131,7 +131,7 @@ public final class GameplayEventPublisher {
      *
      * The subscribe method guarantees that listeners are stored under
      * the event class they accept.
-     * 
+     *
      * 검사되지 않은 형 변환(unchecked cast)을 publisher 내부에만 유지합니다.
      * subscribe 메서드는 리스너가 해당 리스너가 받아들이는 이벤트 클래스 아래에 저장되도록 보장합니다.
      */

@@ -2,9 +2,9 @@ package engine;
 
 /**
  * Implements an object that stores a single game's difficulty settings.
- * 
+ *
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
- * 
+ *
  */
 public class GameSettings {
 
@@ -23,7 +23,7 @@ public class GameSettings {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param formationWidth
 	 *            Width of the level's enemy formation.
 	 * @param formationHeight

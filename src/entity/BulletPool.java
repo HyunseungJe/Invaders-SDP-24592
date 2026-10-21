@@ -5,9 +5,9 @@ import java.util.Set;
 
 /**
  * Implements a pool of recyclable bullets.
- * 
+ *
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
- * 
+ *
  */
 public final class BulletPool {
 
@@ -24,7 +24,7 @@ public final class BulletPool {
 	/**
 	 * Returns a bullet from the pool if one is available, a new one if there
 	 * isn't.
-	 * 
+	 *
 	 * @param positionX
 	 *            Requested position of the bullet in the X axis.
 	 * @param positionY
@@ -129,7 +129,7 @@ public final class BulletPool {
 
 	/**
 	 * Adds one or more bullets to the list of available ones.
-	 * 
+	 *
 	 * @param bullet
 	 *            Bullets to recycle.
 	 */
