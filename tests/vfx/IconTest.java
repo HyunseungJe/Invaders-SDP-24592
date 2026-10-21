@@ -14,8 +14,8 @@ public final class IconTest {
 	}
 
 	public static void main(final String[] args) {
-		check(Icon.values().length == 17,
-				"HUD, menu, settings and title screen icons exist");
+		check(Icon.values().length == 19,
+				"HUD, menu, settings and title screen icons include Shop and Hangar");
 
 		for (Icon icon : Icon.values()) {
 			check(icon.getWidth() > 0 && icon.getHeight() > 0,

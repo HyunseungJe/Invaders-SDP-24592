@@ -517,8 +517,8 @@ private static void testLatestMainMenuOrder() throws Exception {
     java.lang.reflect.Field code = screen.Screen.class.getDeclaredField("returnCode"); code.setAccessible(true);
     java.lang.reflect.Method next = screen.TitleScreen.class.getDeclaredMethod("nextMenuItem"); next.setAccessible(true);
     java.lang.reflect.Method previous = screen.TitleScreen.class.getDeclaredMethod("previousMenuItem"); previous.setAccessible(true);
-    for (int expected : new int[]{3,9,4,0,2}) { next.invoke(menu); assertEquals(expected,code.getInt(menu),"forward menu retains settings"); }
-    for (int expected : new int[]{0,4,9,3,2}) { previous.invoke(menu); assertEquals(expected,code.getInt(menu),"reverse menu retains settings"); }
+    for (int expected : new int[]{10,11,3,9,4,0,2}) { next.invoke(menu); assertEquals(expected,code.getInt(menu),"forward menu includes Shop, Hangar, Settings, and Records"); }
+    for (int expected : new int[]{0,4,9,3,11,10,2}) { previous.invoke(menu); assertEquals(expected,code.getInt(menu),"reverse menu includes Shop, Hangar, Settings, and Records"); }
 }
 	private static void assertTrue(final boolean actual,
 			final String message) {
