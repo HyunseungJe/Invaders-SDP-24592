@@ -186,8 +186,7 @@ public final class Core {
 									gameState.getLevel(), stageCleared);
 							if (frame.isCloseRequested())
 								break;
-							if (!settleStageWithRetry(settlement))
-								break;
+							settleStageWithRetry(settlement);
 
 							if (!stageCleared) {
 								LOGGER.info("Stage " + gameState.getLevel()
@@ -411,13 +410,14 @@ public final class Core {
 		return assets.settleStage();
 	}
 
-	private static boolean settleStageWithRetry(SettlementResult result) {
+	private static void settleStageWithRetry(SettlementResult result) {
 		if (result == SettlementResult.SETTLEMENT_FAILED) {
 			JOptionPane.showMessageDialog(frame,
 					"Earned credits could not be added to your balance.\n"
-							+ "They remain pending. Spend credits in the shop before retrying.",
+							+ "They remain pending while you continue playing.\n"
+							+ "Spend credits in the shop after this run to make room.",
 					"Unable to settle rewards", JOptionPane.WARNING_MESSAGE);
-			return false;
+			return;
 		}
 		while (result == SettlementResult.SAVE_FAILED) {
 			int choice = JOptionPane.showOptionDialog(frame,
@@ -428,7 +428,6 @@ public final class Core {
 				break;
 			result = gameplayAssets.retrySave();
 		}
-		return true;
 	}
 
 	private static GameSettings applyDifficulty(

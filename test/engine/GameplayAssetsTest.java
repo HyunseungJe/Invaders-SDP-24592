@@ -241,6 +241,40 @@ class GameplayAssetsTest {
     }
 
     @Test
+    void overflowedRewardsSurviveLaterCampaignStages() throws Exception {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE,
+                Collections.emptySet(), Collections.emptyMap())));
+        gameplay.beginRun();
+        gameplay.bindItemEffects(adapters(), Map.of());
+        ItemSlots slots = gameplay.getSlots();
+        assertTrue(slots.tryCollect("field.item"));
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+
+        assertEquals(SettlementResult.SETTLEMENT_FAILED,
+                Core.finishCampaignStage(gameplay, 1, true));
+        gameplay.bindItemEffects(adapters(), Map.of());
+        assertTrue(gameplay.getRewards().rewardEnemy("TANK"));
+        assertEquals(SettlementResult.SETTLEMENT_FAILED,
+                Core.finishCampaignStage(gameplay, 2, true));
+
+        assertSame(slots, gameplay.getSlots());
+        assertEquals("field.item", slots.getSlot(0).getItemId());
+        assertEquals(3, CampaignManager.getMaxCampaignStage());
+        assertEquals(Integer.MAX_VALUE, assets.getBalance());
+        assertEquals(60, gameplay.getRewards().getPendingCurrency());
+        assertEquals((long) Integer.MAX_VALUE + 60, gameplay.snapshot().getCredits());
+        assertFalse(Files.exists(directory.resolve(FileManager.ASSETS_FILENAME)));
+        gameplay.endRun();
+
+        assertEquals(PurchaseResult.SUCCESS, gameplay.getShop().purchase(ShopTestFixtures.CONSUMABLE));
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+        assertEquals(0, gameplay.getRewards().getPendingCurrency());
+        assertEquals(Integer.MAX_VALUE - 40, assets.getBalance());
+        assertEquals(Integer.MAX_VALUE - 40, Core.getFileManager().loadPlayerAssets().getBalance());
+    }
+
+    @Test
     void clearedStageRemainsUnlockedAfterSaveFailureAndRetry() throws Exception {
         assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
         Path save = directory.resolve(FileManager.ASSETS_FILENAME);
