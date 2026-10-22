@@ -1,13 +1,17 @@
 package screen;
 
+import audio.AudioManager;
 import currency.ConsumableActivation;
 import currency.ItemUseResult;
 import currency.PlayerAssets;
 import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
+import entity.PlayerStatus;
+import entity.Ship;
 import java.awt.Canvas;
 import java.awt.event.KeyEvent;
+import java.lang.reflect.Field;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -129,6 +133,79 @@ class GameScreenItemSlotsTest {
         assertEquals(2, activations);
         assertNull(slots.getSlot(0));
         assertNull(slots.getSlot(1));
+    }
+
+    @Test
+    void screenUpdateUsesSlotsOnlyDuringActiveGameplay() throws Exception {
+        boolean previouslyMuted = AudioManager.isMuted();
+        AudioManager.setMuted(true);
+        try {
+            screen.initialize();
+            assertTrue(screen.tryCollectItem("field.item"));
+            key(KeyEvent.VK_1, true);
+            screen.update();
+            assertEquals(0, activations, "Countdown must block item use");
+
+            screen.inputDelay = Core.getCooldown(0);
+            screen.update();
+            assertEquals(0, activations, "A key held through countdown needs a release");
+            key(KeyEvent.VK_1, false);
+            screen.update();
+            key(KeyEvent.VK_1, true);
+            screen.update();
+            assertEquals(1, activations);
+            assertNull(slots.getSlot(0));
+
+            assertTrue(screen.tryCollectItem("field.item"));
+            Ship ship = (Ship) read("ship");
+            ship.destroy();
+            pressDuringUpdate();
+            assertEquals(1, activations, "A destroyed ship must not use an item");
+
+            PlayerStatus status = (PlayerStatus) read("playerStatus");
+            assertTrue(status.takeDamage(status.getLives()));
+            pressDuringUpdate();
+            assertEquals(1, activations, "A dead player must not use an item");
+            assertNotNull(slots.getSlot(0));
+        } finally {
+            AudioManager.stopBGM();
+            AudioManager.setMuted(previouslyMuted);
+        }
+    }
+
+    @Test
+    void finishedStageDoesNotConsumeSlots() throws Exception {
+        boolean previouslyMuted = AudioManager.isMuted();
+        AudioManager.setMuted(true);
+        try {
+            screen.initialize();
+            screen.inputDelay = Core.getCooldown(0);
+            Field finished = GameScreen.class.getDeclaredField("levelFinished");
+            finished.setAccessible(true);
+            finished.setBoolean(screen, true);
+            assertTrue(screen.tryCollectItem("field.item"));
+
+            pressDuringUpdate();
+
+            assertEquals(0, activations);
+            assertNotNull(slots.getSlot(0));
+        } finally {
+            AudioManager.stopBGM();
+            AudioManager.setMuted(previouslyMuted);
+        }
+    }
+
+    private Object read(String name) throws Exception {
+        Field field = GameScreen.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(screen);
+    }
+
+    private void pressDuringUpdate() {
+        key(KeyEvent.VK_1, false);
+        screen.update();
+        key(KeyEvent.VK_1, true);
+        screen.update();
     }
 
     private void process(boolean acceptsInput) {
