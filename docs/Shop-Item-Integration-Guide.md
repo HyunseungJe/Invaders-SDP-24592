@@ -124,21 +124,21 @@ For example, if a permanent upgrade has been purchased and unlocked, the gamepla
 Consumable items have a limited quantity and can be used during gameplay.
 
 - Purchasing a consumable increases its inventory quantity.
-- Before use, the Item system checks whether the player has enough of that item.
-- When usage succeeds, the item's gameplay effect is applied and the inventory quantity decreases.
-- An item with zero quantity cannot be used.
+- For purchased items, HanCode checks stock through the usage service. Field pickups are held in run slots separately from purchased stock.
+- Successful use of a purchased item applies the effect and consumes one inventory unit.
+- A purchased item with zero stock cannot be used; a collected field slot does not require purchased stock.
 
 For example, purchasing three healing items increases the inventory quantity by three. When one is successfully used, the quantity decreases by one.
 
-This separation ensures that permanent unlocks are not accidentally consumed and that consumable items cannot be used without sufficient inventory.
+Permanent unlocks are never consumed, and purchased consumables require sufficient purchased stock.
 
 ## 7. Item Usage and Gameplay Integration
 
 Purchasing an item does not automatically apply its gameplay effect. The purchase system manages ownership, while the Item system manages what the item does in the game.
 
-When a player attempts to use a consumable, the intended flow is:
+For a purchased consumable, the service flow is:
 
-1. The Item system requests use through `ItemUseController.tryUse(itemId)`.
+1. GameScreen requests a slot use; a purchased slot delegates to `ItemUseController.tryUse(itemId)`.
 2. `ItemUseService` validates the item ID and checks that the catalog and activation adapter support it.
 3. The service calls `validate()`. An ordinary rejection returns without changing inventory.
 4. After successful validation, the service reserves one unit through `PlayerAssets`. If no stock is available, it returns `OUT_OF_STOCK` without activating the effect.
@@ -188,7 +188,7 @@ Purchase processing and persistence must remain separate responsibilities. A suc
 **Integration entry points**
 
 - `Core.getShopController()` is the integration entry point for the Shop system.
-- `createItemUseController(...)` is the integration entry point for item usage.
+- `GameScreen.bindItemEffects(...)` connects supplied adapters to the run slots. Those slots use `createItemUseController(...)` internally.
 
 **Saving after item usage**
 
@@ -241,65 +241,57 @@ Our team manages purchasing, inventory, usage-service preparation, and persisten
 
 ## 12. Run Slots and HUD Hooks
 
-The slot container, gameplay input hooks, HUD data and drawing method are available for integration. Production effects, pickup routing, Core's run setup and final HUD placement still need to be connected. The examples below show the supplied APIs; they do not replace the current game loop.
+Core creates one `GameplayAssets` session from the loaded assets. It shares the shop, reward accumulator and latest save result, creates a fresh slot container for each Campaign run, attaches it to each stage and clears it when the run ends. Actual item adapters and pickup routing, typed reward event subscriptions, and final HUD placement still need the corresponding team changes.
 
-### Shared save result
+### Shared save result and settlement
 
-Use the same loaded `PlayerAssets`, `FileManager` and `AssetSaveState` when HanCode connects the session controllers. This lets the HUD show the latest save result whether a purchase, purchased-item use or reward settlement last attempted saving. These constructors are implemented; Core's shared reward setup remains part of the Campaign event integration.
+`GameplayAssets` constructs `ShopController` and `RewardSettlementCoordinator` with the same `PlayerAssets`, `FileManager` and `AssetSaveState`. Gameplay uses these existing objects; do not create or load a second set of assets. `Core.getShopController()` still returns the shared shop.
 
-```java
-AssetSaveState saveState = new AssetSaveState();
-ShopController shop = new ShopController(assets, files, products, saveState);
-RewardSystem rewards = new RewardSystem(assets);
-RewardSettlementCoordinator settlement =
-        new RewardSettlementCoordinator(rewards, assets, files, saveState);
-```
+Core calls `settleStage()` after a Campaign stage returns, including failure and a normal window-close request. This transfers only rewards already accumulated; it does not award a completion bonus. The forthcoming Campaign event listener must award that bonus exactly once from the agreed completion event. HanCode still needs to configure reward values and subscribe to the typed events once their publication paths are available in the integration base. Ordinary gameplay does not yet earn credits.
 
-These objects are shared with gameplay; the HUD does not load or create a second asset state. `shop.retrySave()` retries a failed save without repeating a purchase, item effect or reward settlement. Newly pending rewards remain pending.
+Saving failures keep runtime assets intact and offer a save-only retry. Window closing finishes the current frame and returns to Core. Core saves before disposing the window; if that fails, the player may retry or return to the menu. Balance overflow retains pending rewards instead of clearing them. These rules cover normal application exits, not forced process termination.
 
 ### Two slots
 
-Create one `ItemSlots` per run. Bind adapters for the current ship before equipping starting items:
+Core already calls `beginRun()` and `gameScreen.setGameplayAssets(...)`. Once Best-French supplies its adapters, HanCode will bind them after the stage's ship and effect managers have been created, before gameplay starts:
 
 ```java
-ItemSlots slots = new ItemSlots(shop);
-slots.bind(activations); // Map<String, ConsumableActivation>
-slots.equipStartingItems();
+gameScreen.bindItemEffects(activations, fieldItemNames);
 ```
+
+Here `activations` is a `Map<String, ConsumableActivation>` for the current ship, and `fieldItemNames` supplies display names for field-only IDs. Binding equips starting items only once per run. At each following stage, bind fresh adapters for the new ship; existing slots are retained without automatic refilling. Until adapters are provided, the production slots remain empty and the existing item paths keep their behavior.
 
 Starting equipment takes one unit per supported product in catalog order, up to two slots. Equipping only holds a reference to purchased stock. It does not consume or save it. Starting equipment is selected once; using an item does not automatically refill the slot.
 
-Attach the container with `gameScreen.setItemSlots(slots)`. Bind adapters after the stage's ship and effect managers have been created. For a field pickup, remove it only when `gameScreen.tryCollectItem(itemId)` returns `true`. This delegates to `slots.tryCollect(itemId)`; a full or unattached container returns `false`, so the pickup can continue falling. Field items use the same activation contract but do not consume or save purchased inventory.
+For a field pickup, remove it only when `gameScreen.tryCollectItem(itemId)` returns `true`. A full or unavailable container returns `false`, so the pickup can continue falling. Field items use the same activation contract but do not consume or save purchased inventory.
 
-`slots.tryUse(0)` and `slots.tryUse(1)` use the first and second slots. Once attached, GameScreen calls them once per new 1/2 key press while gameplay accepts input. A key already held on entry or during blocked input must be released before use. A key assigned to movement or firing cannot also consume a slot. Ordinary rejection keeps the slot and stock unchanged. Success clears the slot, including when the subsequent purchased-stock save fails. An unexpected adapter exception blocks the container until its assets and effects have been reconciled; rebinding cannot bypass this failure.
+GameScreen calls the first and second slots once per new 1/2 key press while gameplay accepts input. A key already held on entry or during blocked input must be released before use. A key assigned to movement or firing cannot also consume a slot. Ordinary rejection keeps the slot and stock unchanged. Success clears the slot, including when the subsequent purchased-stock save fails. An unexpected adapter exception blocks the container until its assets and effects have been reconciled; rebinding cannot bypass this failure.
 
-Keep the same container across stages and life loss. Call `bind(...)` with adapters for the next ship, without equipping again. At the end of the run, call `clear()` and discard the container. Unused purchased stock remains in `PlayerAssets`; field slots and active effects are not saved.
+Core retains the same container across stages; life loss does not replace it. At run end, Core calls `endRun()` to clear and discard the container. Unused purchased stock remains in `PlayerAssets`; field slots and active effects are not saved. `setItemSlots(...)` remains available for isolated screen checks.
 
 ### HUD data and drawing
 
-Construct the provider once for the run. Product names come from the shop; supply names for any additional field-only IDs.
+The Campaign screen now exposes its existing provider through `getAssetHudSnapshot()`. After gameplay input and events have been processed, read it on the gameplay thread, inside the normal drawing pass:
 
 ```java
-AssetHudProvider hud = new AssetHudProvider(shop, rewards, slots, fieldItemNames);
+AssetHudSnapshot state = gameScreen.getAssetHudSnapshot();
+if (state != null) {
+    long credits = state.getCredits();
+    String notice = state.getNotice();
+    boolean warning = state.isWarning();
+    int slotHeight = drawManager.drawItemSlots(gameScreen, state, x, y, availableWidth);
+}
 ```
 
-After gameplay input and events have been processed, read a snapshot on the same gameplay thread:
-
-```java
-AssetHudSnapshot state = hud.snapshot();
-long credits = state.getCredits();
-String notice = state.getNotice();
-boolean warning = state.isWarning();
-int slotHeight = drawManager.drawItemSlots(screen, state, x, y, availableWidth);
-```
+A null snapshot means the screen has no Campaign asset context. The returned data is read-only; Friends does not need to construct a provider or calculate rewards. Product names come from the shop, while field-only names come from the item binding above.
 
 `credits` is the current balance plus earned rewards awaiting settlement. It is a `long` to avoid display overflow. Settlement transfers that amount without changing the displayed total; purchases still use only the settled balance. The notice is `"Save failed"` when the last shared save attempt failed, otherwise empty. Pending rewards alone do not produce a save warning.
 
 Each immutable slot view supplies its 1/2 key number, item ID, display name, purchased/field source and total purchased quantity. Empty slots report `isEmpty()`. Purchased quantity includes equipped references; a field slot reports zero purchased quantity.
 
-`drawItemSlots(...)` draws two rows using the existing game font and palette, clips to the supplied width and returns the height used. Call it between `initDrawing(...)` and `completeDrawing(...)`. Friends can choose coordinates alongside its existing Credits display after the joint layout check. The method does not move the separator or replace the active-buff display.
+`drawItemSlots(...)` draws two rows using the existing game font and palette, clips to the supplied width and returns the height used. Call it between `initDrawing(...)` and `completeDrawing(...)`. Friends can choose coordinates alongside its existing Credits display after the joint layout check. The method does not move the separator or replace the active-buff display. The production drawing pass does not call this method yet.
 
-HUD integration files: `src/hud/AssetHudProvider.java`, `src/hud/AssetHudSnapshot.java`, and the added `drawItemSlots(...)` method in `src/engine/DrawManager.java`. Gameplay supplies `src/shop/ItemSlots.java`. The existing `ShopScreen` constructor and menu return code are unchanged.
+HUD-facing files are `src/screen/GameScreen.java`, `src/hud/AssetHudProvider.java`, `src/hud/AssetHudSnapshot.java`, and `src/engine/DrawManager.java`. HanCode owns the lifecycle in `src/engine/GameplayAssets.java` and `src/engine/Core.java`, with normal-exit handling in `src/engine/Frame.java` and `src/screen/Screen.java`. The existing `ShopScreen` constructor and menu return code are unchanged.
 
 ## 13. Speedster Unlock Check
 
