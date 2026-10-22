@@ -56,6 +56,7 @@ public class Frame extends JFrame {
 		setTitle("Invaders");
 
 		addKeyListener(Core.getInputManager());
+		addWindowFocusListener(Core.getInputManager());
 		getContentPane().addMouseListener(Core.getInputManager());
 		getContentPane().addMouseMotionListener(Core.getInputManager());
 	}

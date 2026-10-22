@@ -12,6 +12,7 @@ import entity.PlayerStatus;
 import entity.Ship;
 import java.awt.Canvas;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.lang.reflect.Field;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -169,6 +170,49 @@ class GameScreenItemSlotsTest {
             assertEquals(1, activations, "A dead player must not use an item");
             assertNotNull(slots.getSlot(0));
         } finally {
+            AudioManager.stopBGM();
+            AudioManager.setMuted(previouslyMuted);
+        }
+    }
+
+    @Test
+    void focusLossClearsHeldInputBeforeGameplayContinues() throws Exception {
+        boolean previouslyMuted = AudioManager.isMuted();
+        AudioManager.setMuted(true);
+        try {
+            screen.initialize();
+            screen.inputDelay = Core.getCooldown(0);
+            assertTrue(screen.tryCollectItem("field.item"));
+            key(KeyEvent.VK_RIGHT, true);
+            key(KeyEvent.VK_SPACE, true);
+            key(KeyEvent.VK_1, true);
+            Core.getInputManager().mousePressed(new MouseEvent(keySource,
+                    MouseEvent.MOUSE_PRESSED, 0, 0, 10, 10, 1, false, MouseEvent.BUTTON1));
+
+            Core.getInputManager().windowLostFocus(null);
+            Core.getInputManager().windowGainedFocus(null);
+
+            assertFalse(Core.getInputManager().isKeyDown(KeyEvent.VK_RIGHT));
+            assertFalse(Core.getInputManager().isKeyDown(KeyEvent.VK_SPACE));
+            assertFalse(Core.getInputManager().isKeyDown(KeyEvent.VK_1));
+            assertFalse(Core.getInputManager().isMousePressed());
+            assertEquals(KeyEvent.VK_UNDEFINED, Core.getInputManager().consumeLastPressedKey());
+            Ship ship = (Ship) read("ship");
+            int position = ship.getPositionX();
+            screen.update();
+            assertEquals(position, ship.getPositionX());
+            assertEquals(0, screen.getGameState().getBulletsShot());
+            assertEquals(0, activations);
+            assertNotNull(slots.getSlot(0));
+
+            key(KeyEvent.VK_RIGHT, true);
+            key(KeyEvent.VK_1, true);
+            screen.update();
+            assertTrue(ship.getPositionX() > position);
+            assertEquals(1, activations);
+            assertNull(slots.getSlot(0));
+        } finally {
+            Core.getInputManager().windowLostFocus(null);
             AudioManager.stopBGM();
             AudioManager.setMuted(previouslyMuted);
         }

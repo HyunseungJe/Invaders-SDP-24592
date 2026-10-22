@@ -5,6 +5,9 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowFocusListener;
+import java.util.Arrays;
 
 /**
  * Manages keyboard input for the provided screen.
@@ -12,7 +15,7 @@ import java.awt.event.MouseMotionListener;
  * @author <a href="mailto:RobertoIA1987@gmail.com">Roberto Izquierdo Amo</a>
  *
  */
-public final class InputManager implements KeyListener, MouseListener, MouseMotionListener {
+public final class InputManager implements KeyListener, MouseListener, MouseMotionListener, WindowFocusListener {
 
 	/** Number of recognised keys. */
 	private static final int NUM_KEYS = 256;
@@ -67,6 +70,18 @@ public final class InputManager implements KeyListener, MouseListener, MouseMoti
 
 	public void clearLastPressedKey() {
 		lastPressedKey = KeyEvent.VK_UNDEFINED;
+	}
+
+	/** Clears presses when a dialog or another window takes focus. */
+	@Override
+	public void windowLostFocus(final WindowEvent event) {
+		Arrays.fill(keys, false);
+		lastPressedKey = KeyEvent.VK_UNDEFINED;
+		mousePressed = false;
+	}
+
+	@Override
+	public void windowGainedFocus(final WindowEvent event) {
 	}
 
 	/**
