@@ -9,6 +9,8 @@ import currency.PurchaseResult;
 import currency.PurchaseSystem;
 import currency.RewardSystem;
 import currency.ShopCatalog;
+import shop.ShopController;
+import shop.ShopTestFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,6 +53,71 @@ class RewardSettlementCoordinatorTest {
         assertEquals(0, rewards.getPendingCurrency());
         assertEquals(50, assets.getBalance());
         assertSavedAssets(savePath, assets.snapshot());
+    }
+
+    @Test
+    void rewardSaveClearsAPurchaseSaveFailure() throws IOException {
+        String previous = System.getProperty("invaders.storageDir");
+        try {
+            AssetSaveState saveState = new AssetSaveState();
+            assertTrue(assets.restore(new PlayerAssetsState(1000,
+                    Collections.<String>emptySet(), Collections.<String, Integer>emptyMap())));
+            ShopController shop = new ShopController(assets, fileManager,
+                    ShopTestFixtures.products(), saveState);
+            RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(
+                    rewards, assets, fileManager, saveState);
+            Path blocker = tempDir.resolve("blocker");
+            Files.write(blocker, new byte[] {1});
+            System.setProperty("invaders.storageDir", blocker.toString());
+
+            assertEquals(PurchaseResult.SUCCESS, shop.purchase(ShopTestFixtures.CONSUMABLE));
+            assertEquals(ShopController.SaveStatus.FAILED, shop.getSaveStatus());
+            System.setProperty("invaders.storageDir", tempDir.toString());
+            assertTrue(rewards.rewardEnemy("BASIC"));
+            assertEquals(SettlementResult.SUCCESS, coordinator.processSettlement());
+
+            assertEquals(ShopController.SaveStatus.SAVED, shop.getSaveStatus());
+            assertSavedAssets(tempDir.resolve(FileManager.ASSETS_FILENAME), assets.snapshot());
+        } finally {
+            restoreStorageDirectory(previous);
+        }
+    }
+
+    @Test
+    void shopRetrySavesRewardChangesWithoutSettlingNewPendingRewards() throws IOException {
+        String previous = System.getProperty("invaders.storageDir");
+        try {
+            AssetSaveState saveState = new AssetSaveState();
+            ShopController shop = new ShopController(assets, fileManager,
+                    ShopTestFixtures.products(), saveState);
+            RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(
+                    rewards, assets, fileManager, saveState);
+            Path blocker = tempDir.resolve("blocker");
+            Files.write(blocker, new byte[] {1});
+            System.setProperty("invaders.storageDir", blocker.toString());
+            assertTrue(rewards.rewardEnemy("TANK"));
+            assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
+            assertEquals(ShopController.SaveStatus.FAILED, shop.getSaveStatus());
+
+            System.setProperty("invaders.storageDir", tempDir.toString());
+            assertTrue(rewards.rewardEnemy("BASIC"));
+            assertTrue(shop.retrySave());
+
+            assertEquals(50, assets.getBalance());
+            assertEquals(10, rewards.getPendingCurrency());
+            assertEquals(ShopController.SaveStatus.SAVED, shop.getSaveStatus());
+            assertSavedAssets(tempDir.resolve(FileManager.ASSETS_FILENAME), assets.snapshot());
+        } finally {
+            restoreStorageDirectory(previous);
+        }
+    }
+
+    private void restoreStorageDirectory(String previous) {
+        if (previous == null) {
+            System.clearProperty("invaders.storageDir");
+        } else {
+            System.setProperty("invaders.storageDir", previous);
+        }
     }
 
     @Test

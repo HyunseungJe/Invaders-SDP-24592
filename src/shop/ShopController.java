@@ -10,6 +10,7 @@ import currency.PurchaseSystem;
 import currency.ShopCatalog;
 import currency.ShopCatalog.Category;
 import engine.Core;
+import engine.AssetSaveState;
 import engine.FileManager;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public final class ShopController {
     private final ShopCatalog catalog;
     private final PurchaseSystem purchases;
     private final List<ShopProduct> products;
-    private SaveStatus saveStatus = SaveStatus.NOT_NEEDED;
+    private final AssetSaveState saveState;
     private boolean itemUseInProgress;
     private ItemUseService activeItemUse;
 
@@ -55,21 +56,34 @@ public final class ShopController {
      */
     public ShopController(PlayerAssets assets, final FileManager fileManager,
             List<ShopProduct> definitions) {
+        this(assets, fileManager, definitions, new AssetSaveState());
+    }
+
+    /** Shares save results with the reward settlement coordinator. */
+    public ShopController(PlayerAssets assets, final FileManager fileManager,
+            List<ShopProduct> definitions, AssetSaveState saveState) {
         this(assets, fileManager, definitions, new AssetSaver() {
             @Override
             public void save(PlayerAssetsState state) throws IOException {
                 fileManager.savePlayerAssets(state);
             }
-        });
+        }, saveState);
     }
 
     ShopController(PlayerAssets assets, FileManager fileManager, List<ShopProduct> definitions,
             AssetSaver saver) {
-        if (assets == null || fileManager == null || definitions == null || saver == null) {
+        this(assets, fileManager, definitions, saver, new AssetSaveState());
+    }
+
+    ShopController(PlayerAssets assets, FileManager fileManager, List<ShopProduct> definitions,
+            AssetSaver saver, AssetSaveState saveState) {
+        if (assets == null || fileManager == null || definitions == null || saver == null
+                || saveState == null) {
             throw new IllegalArgumentException("Shop dependencies cannot be null.");
         }
         this.assets = assets;
         this.saver = saver;
+        this.saveState = saveState;
         this.catalog = new ShopCatalog();
 
         List<ShopProduct> listed = new ArrayList<ShopProduct>();
@@ -101,11 +115,14 @@ public final class ShopController {
     }
 
     /**
-     * Returns the last save status for purchases and uses through this controller.
-     * Saves performed by reward settlement do not update this status.
+     * Returns the latest save result. Reward saves participate when constructed
+     * with the same AssetSaveState as the settlement coordinator.
      */
     public synchronized SaveStatus getSaveStatus() {
-        return saveStatus;
+        if (saveState.hasFailure()) {
+            return SaveStatus.FAILED;
+        }
+        return saveState.hasAttemptedSave() ? SaveStatus.SAVED : SaveStatus.NOT_NEEDED;
     }
 
     /**
@@ -139,15 +156,15 @@ public final class ShopController {
     }
 
     /**
-     * Retries this controller's failed save using the latest shared assets,
-     * without repeating a purchase or effect. Reward save failures are handled separately.
+     * Retries a failed save using the latest shared assets,
+     * without repeating a purchase, effect or reward settlement.
      *
      * @return true if no save is pending here or the latest save succeeded
      * @throws IllegalStateException if called while item use is in progress
      */
     public synchronized boolean retrySave() {
         requireNoItemUse();
-        return saveStatus != SaveStatus.FAILED || saveLatestAssets();
+        return !saveState.hasFailure() || saveLatestAssets();
     }
 
     synchronized ItemUseResult useItem(ItemUseService service, String itemId) {
@@ -192,7 +209,7 @@ public final class ShopController {
     private boolean saveLatestAssets() {
         try {
             saver.save(assets.snapshot());
-            saveStatus = SaveStatus.SAVED;
+            saveState.recordSuccess();
             return true;
         } catch (IOException exception) {
             reportSaveFailure(exception);
@@ -203,7 +220,7 @@ public final class ShopController {
     }
 
     private void reportSaveFailure(Exception exception) {
-        saveStatus = SaveStatus.FAILED;
+        saveState.recordFailure();
         Core.getLogger().warning("Asset save failed; runtime assets retained: " + exception);
     }
 }

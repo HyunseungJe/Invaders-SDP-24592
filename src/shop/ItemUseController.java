@@ -38,8 +38,7 @@ public final class ItemUseController {
     }
 
     /**
-     * Returns the shared shop's purchase/use save status across gameplay contexts.
-     * Reward settlement reports its save result separately.
+     * Returns the shared asset save status across gameplay contexts.
      */
     public ShopController.SaveStatus getSaveStatus() {
         return shop.getSaveStatus();
@@ -47,7 +46,7 @@ public final class ItemUseController {
 
     /**
      * Retries the shared shop's failed save without consuming or activating again.
-     * This does not retry failures reported only by reward settlement.
+     * Pending rewards are not settled by this retry.
      *
      * @throws IllegalStateException if called while item use is in progress
      */
