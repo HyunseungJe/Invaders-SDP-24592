@@ -123,6 +123,53 @@ class GameplayAssetsTest {
         assertFalse(Files.exists(directory.resolve(FileManager.ASSETS_FILENAME)));
     }
 
+    @Test
+    void normalExitSettlesEarnedRewardsWithoutAddingAClearBonus() throws Exception {
+        gameplay.beginRun();
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+        gameplay.endRun();
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+
+        assertEquals(1010, assets.getBalance());
+        assertEquals(0, gameplay.getRewards().getPendingCurrency());
+        assertEquals(1010, Core.getFileManager().loadPlayerAssets().getBalance());
+    }
+
+    @Test
+    void exitSaveFailureRetainsProgressAndRetryDoesNotPayAgain() throws Exception {
+        gameplay.beginRun();
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        Files.createDirectory(save);
+        Path blocker = Files.writeString(save.resolve("blocker"), "keep");
+
+        assertEquals(SettlementResult.SAVE_FAILED, gameplay.prepareExit());
+        assertEquals(1010, assets.getBalance());
+        assertEquals(0, gameplay.getRewards().getPendingCurrency());
+        assertEquals(SettlementResult.SAVE_FAILED, gameplay.prepareExit());
+        Files.delete(blocker);
+        Files.delete(save);
+
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+        assertEquals(1010, Core.getFileManager().loadPlayerAssets().getBalance());
+    }
+
+    @Test
+    void exitCannotDiscardRewardsThatDidNotFitTheBalance() {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE,
+                Collections.emptySet(), Collections.emptyMap())));
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+        assertEquals(SettlementResult.SETTLEMENT_FAILED, gameplay.prepareExit());
+        assertEquals(10, gameplay.getRewards().getPendingCurrency());
+        assertFalse(Files.exists(directory.resolve(FileManager.ASSETS_FILENAME)));
+
+        assertEquals(PurchaseResult.SUCCESS, gameplay.getShop().purchase(ShopTestFixtures.CONSUMABLE));
+        assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
+        assertEquals(Integer.MAX_VALUE - 90, assets.getBalance());
+    }
+
     private Map<String, ConsumableActivation> adapters() {
         ConsumableActivation effect = new ConsumableActivation() {
             @Override

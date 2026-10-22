@@ -248,6 +248,29 @@ class GameScreenItemSlotsTest {
         });
     }
 
+    @Test
+    void stopRequestsFinishTheFrameAndPreventAnotherUpdate() {
+        Screen stoppedBeforeRun = new Screen(448, 520, 60) {
+            @Override
+            protected void update() {
+                fail("A screen stopped before entry must not update");
+            }
+        };
+        stoppedBeforeRun.requestStop();
+        assertEquals(0, stoppedBeforeRun.run());
+
+        final int[] frames = {0};
+        Screen stoppedDuringRun = new Screen(448, 520, 60) {
+            @Override
+            protected void update() {
+                assertEquals(1, ++frames[0]);
+                requestStop();
+            }
+        };
+        assertEquals(0, stoppedDuringRun.run());
+        assertEquals(1, frames[0]);
+    }
+
     private Object read(String name) throws Exception {
         Field field = GameScreen.class.getDeclaredField(name);
         field.setAccessible(true);

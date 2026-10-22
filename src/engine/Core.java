@@ -182,6 +182,10 @@ public final class Core {
 
 							boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
 							gameState = ((GameScreen) currentScreen).getGameState();
+							if (frame.isCloseRequested()) {
+								gameplayAssets.settleStage();
+								break;
+							}
 							if (!settleStageWithRetry())
 								break;
 
@@ -208,6 +212,10 @@ public final class Core {
 						gameplayAssets.endRun();
 					}
 
+					if (frame.isCloseRequested()) {
+						returnCode = 0;
+						break;
+					}
 					RunRecord completedRun = runSession.finish(gameState.getScore(),
 							gameState.getShipsDestroyed(), System.currentTimeMillis());
 					if (recordsService.completeRun(completedRun))
@@ -293,6 +301,10 @@ public final class Core {
 					frame.setScreen(currentScreen);
 					LOGGER.info("Closing infinite game screen.");
 
+					if (frame.isCloseRequested()) {
+						returnCode = 0;
+						break;
+					}
 					gameState = ((InfiniteGameScreen) currentScreen).getGameState();
 					if (!((InfiniteGameScreen) currentScreen).isAbandoned()) {
 						RunRecord infiniteRecord = infiniteSession.finish(gameState.getScore(),
@@ -313,7 +325,15 @@ public final class Core {
 					break;
 			}
 
-		} while (returnCode != 0);
+			if (returnCode == 0 || frame.isCloseRequested()) {
+				if (saveBeforeExit())
+					break;
+				frame.cancelCloseRequest();
+				returnCode = 1;
+			}
+		} while (true);
+
+		frame.dispose();
 
 		recordsService.close();
 		if (recordsService.getSaveError() != null)
@@ -364,6 +384,24 @@ public final class Core {
 				return false;
 			}
 		}
+	}
+
+	private static boolean saveBeforeExit() {
+		SettlementResult result = gameplayAssets.prepareExit();
+		while (result != SettlementResult.SUCCESS) {
+			String message = result == SettlementResult.SETTLEMENT_FAILED
+					? "Earned credits could not be added to your balance.\n"
+							+ "Return to the shop to spend credits before exiting."
+					: "Your progress could not be saved. Retry or return to the menu?";
+			int choice = JOptionPane.showOptionDialog(frame, message,
+					"Unable to save progress", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.WARNING_MESSAGE, null,
+					new String[] { "Retry", "Return to menu" }, "Retry");
+			if (choice != 0)
+				return false;
+			result = gameplayAssets.prepareExit();
+		}
+		return true;
 	}
 
 	private static boolean settleStageWithRetry() {

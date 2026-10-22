@@ -75,6 +75,14 @@ public final class GameplayAssets {
         return settlement.retrySave();
     }
 
+    /** Preserves pending rewards on transfer failure and never repeats item effects. */
+    public SettlementResult prepareExit() {
+        if (rewards.getPendingCurrency() > 0) {
+            return settlement.processSettlement();
+        }
+        return shop.retrySave() ? SettlementResult.SUCCESS : SettlementResult.SAVE_FAILED;
+    }
+
     public void endRun() {
         getSlots().clear();
         slots = null;

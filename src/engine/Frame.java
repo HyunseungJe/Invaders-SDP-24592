@@ -1,6 +1,8 @@
 package engine;
 
 import java.awt.Insets;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 import javax.swing.JFrame;
 
@@ -20,7 +22,8 @@ public class Frame extends JFrame {
 	/** Frame height. */
 	private int height;
 	/** Screen currently shown. */
-	private Screen currentScreen;
+	private volatile Screen currentScreen;
+	private volatile boolean closeRequested;
 
 	/**
 	 * Initializes the new frame.
@@ -33,7 +36,16 @@ public class Frame extends JFrame {
 	public Frame(final int width, final int height) {
 		setSize(width, height);
 		setResizable(false);
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(final WindowEvent event) {
+				closeRequested = true;
+				Screen screen = currentScreen;
+				if (screen != null)
+					screen.requestStop();
+			}
+		});
 
 		setLocationRelativeTo(null);
 		setVisible(true);
@@ -57,8 +69,19 @@ public class Frame extends JFrame {
 	 */
 	public final int setScreen(final Screen screen) {
 		currentScreen = screen;
+		if (closeRequested)
+			return 0;
 		currentScreen.initialize();
 		return currentScreen.run();
+	}
+
+	public final boolean isCloseRequested() {
+		return this.closeRequested;
+	}
+
+	/** Keeps the window open when the player returns to the menu after a save failure. */
+	public final void cancelCloseRequest() {
+		this.closeRequested = false;
 	}
 
 	/**

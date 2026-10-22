@@ -46,6 +46,7 @@ public class Screen {
 
 	/** If the screen is running. */
 	protected boolean isRunning;
+	private volatile boolean stopRequested;
 	/** What kind of screen goes next. */
 	protected int returnCode;
 
@@ -89,7 +90,7 @@ public class Screen {
 		this.isRunning = true;
 		long previousTime = System.nanoTime();
 
-		while (this.isRunning) {
+		while (this.isRunning && !this.stopRequested) {
 			long time = System.currentTimeMillis();
 
 			long currentTime = System.nanoTime();
@@ -117,6 +118,11 @@ public class Screen {
 	 * Updates the elements on screen and checks for events.
 	 */
 	protected void update() {
+	}
+
+	/** Finishes the current frame before returning to Core for settlement. */
+	public final void requestStop() {
+		this.stopRequested = true;
 	}
 
 	/**

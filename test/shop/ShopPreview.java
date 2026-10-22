@@ -59,6 +59,7 @@ public final class ShopPreview {
                 do {
                     int result = frame.setScreen(new ShopScreen(
                             frame.getWidth(), frame.getHeight(), 60, controller));
+                    if (frame.isCloseRequested()) break;
                     check(result == ShopScreen.RETURN_TO_MAIN_MENU, "Return contract");
                     System.out.println("Returned Main Menu code: " + result);
                     releaseKeys();
