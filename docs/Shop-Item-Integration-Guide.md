@@ -238,3 +238,89 @@ The Shop and Item systems are connected through shared player asset state and de
 The Shop system uses `ShopCatalog` and `PurchaseSystem` to validate and process purchases. Successful purchases update the player's balance, inventory, or permanent unlock state through `PlayerAssets`. During gameplay, the Item system accesses that same asset state to check ownership and availability, while the item-usage service coordinates inventory updates with the actual gameplay effect.
 
 Our team manages purchasing, inventory, usage-service preparation, and persistence integration. The Item team manages the actual effects of items. Keeping these responsibilities separate while sharing the same player asset state allows both systems to work together consistently.
+
+## 12. Run Slots and HUD Hooks
+
+The slot container, gameplay input hooks, HUD data and drawing method are available for integration. Production effects, pickup routing, Core's run setup and final HUD placement still need to be connected. The examples below show the supplied APIs; they do not replace the current game loop.
+
+### Shared save result
+
+Use the same loaded `PlayerAssets`, `FileManager` and `AssetSaveState` when HanCode connects the session controllers. This lets the HUD show the latest save result whether a purchase, purchased-item use or reward settlement last attempted saving. These constructors are implemented; Core's shared reward setup remains part of the Campaign event integration.
+
+```java
+AssetSaveState saveState = new AssetSaveState();
+ShopController shop = new ShopController(assets, files, products, saveState);
+RewardSystem rewards = new RewardSystem(assets);
+RewardSettlementCoordinator settlement =
+        new RewardSettlementCoordinator(rewards, assets, files, saveState);
+```
+
+These objects are shared with gameplay; the HUD does not load or create a second asset state. `shop.retrySave()` retries a failed save without repeating a purchase, item effect or reward settlement. Newly pending rewards remain pending.
+
+### Two slots
+
+Create one `ItemSlots` per run. Bind adapters for the current ship before equipping starting items:
+
+```java
+ItemSlots slots = new ItemSlots(shop);
+slots.bind(activations); // Map<String, ConsumableActivation>
+slots.equipStartingItems();
+```
+
+Starting equipment takes one unit per supported product in catalog order, up to two slots. Equipping only holds a reference to purchased stock. It does not consume or save it. Starting equipment is selected once; using an item does not automatically refill the slot.
+
+Attach the container with `gameScreen.setItemSlots(slots)`. Bind adapters after the stage's ship and effect managers have been created. For a field pickup, remove it only when `gameScreen.tryCollectItem(itemId)` returns `true`. This delegates to `slots.tryCollect(itemId)`; a full or unattached container returns `false`, so the pickup can continue falling. Field items use the same activation contract but do not consume or save purchased inventory.
+
+`slots.tryUse(0)` and `slots.tryUse(1)` use the first and second slots. Once attached, GameScreen calls them once per new 1/2 key press while gameplay accepts input. A key already held on entry or during blocked input must be released before use. A key assigned to movement or firing cannot also consume a slot. Ordinary rejection keeps the slot and stock unchanged. Success clears the slot, including when the subsequent purchased-stock save fails. An unexpected adapter exception blocks the container until its assets and effects have been reconciled; rebinding cannot bypass this failure.
+
+Keep the same container across stages and life loss. Call `bind(...)` with adapters for the next ship, without equipping again. At the end of the run, call `clear()` and discard the container. Unused purchased stock remains in `PlayerAssets`; field slots and active effects are not saved.
+
+### HUD data and drawing
+
+Construct the provider once for the run. Product names come from the shop; supply names for any additional field-only IDs.
+
+```java
+AssetHudProvider hud = new AssetHudProvider(shop, rewards, slots, fieldItemNames);
+```
+
+After gameplay input and events have been processed, read a snapshot on the same gameplay thread:
+
+```java
+AssetHudSnapshot state = hud.snapshot();
+long credits = state.getCredits();
+String notice = state.getNotice();
+boolean warning = state.isWarning();
+int slotHeight = drawManager.drawItemSlots(screen, state, x, y, availableWidth);
+```
+
+`credits` is the current balance plus earned rewards awaiting settlement. It is a `long` to avoid display overflow. Settlement transfers that amount without changing the displayed total; purchases still use only the settled balance. The notice is `"Save failed"` when the last shared save attempt failed, otherwise empty. Pending rewards alone do not produce a save warning.
+
+Each immutable slot view supplies its 1/2 key number, item ID, display name, purchased/field source and total purchased quantity. Empty slots report `isEmpty()`. Purchased quantity includes equipped references; a field slot reports zero purchased quantity.
+
+`drawItemSlots(...)` draws two rows using the existing game font and palette, clips to the supplied width and returns the height used. Call it between `initDrawing(...)` and `completeDrawing(...)`. Friends can choose coordinates alongside its existing Credits display after the joint layout check. The method does not move the separator or replace the active-buff display.
+
+HUD integration files: `src/hud/AssetHudProvider.java`, `src/hud/AssetHudSnapshot.java`, and the added `drawItemSlots(...)` method in `src/engine/DrawManager.java`. Gameplay supplies `src/shop/ItemSlots.java`. The existing `ShopScreen` constructor and menu return code are unchanged.
+
+## 13. Speedster Unlock Check
+
+The first ship unlock uses `ship.speedster`. Standard and Heavy Tank remain freely available. KimchiBaguette owns the locked-state display and selection check; the preview below verifies HanCode's purchase and persistence side. The production catalog remains empty until prices are agreed.
+
+From the repository root, compile the preview and choose a separate test directory:
+
+```powershell
+.\gradlew.bat testClasses
+if ($LASTEXITCODE -ne 0) { throw 'Compilation failed.' }
+$previewClasspath = '.\build\classes\java\main;.\build\classes\java\test;.\build\resources\main'
+$speedsterProfile = Join-Path $env:TEMP 'invaders-speedster-preview'
+java -cp $previewClasspath shop.ShopPreview --speedster-profile $speedsterProfile
+```
+
+A new profile starts with 1,000 test credits and no unlocks. Speedster costs 500 only in this preview; this is not the agreed production price. Buy it, close the preview, and run the last command again with the same directory. The balance must remain 500 and Speedster must remain owned. Existing profiles are never refilled or reset. Use a different directory for a fresh check.
+
+The profile uses `player_assets.properties`, so the selection implementation can read the same state using `-Dinvaders.storageDir=<profile directory>`. For example, after the selection check has been connected:
+
+```powershell
+java "-Dinvaders.storageDir=$speedsterProfile" -cp $previewClasspath engine.Core
+```
+
+Read `PlayerAssets.isUnlocked("ship.speedster")` on the shared assets for the selection decision. Keep locked Speedster visible, block its selection until purchase, and do not add checks for Standard or Heavy Tank. The preview does not implement that selection policy itself.

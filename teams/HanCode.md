@@ -57,10 +57,13 @@ Currency System. Our team is responsible for managing the in-game currency econo
    We depend on this team to trigger and broadcast a 'Level Completed' event containing the level ID and the difficulty data required to calculate and award the appropriate end-of-level currency reward.
 
 2. Item System:  
-   Coordinate purchasable item identifiers and prices with the Item System, which provides effect behavior and a supported activation interface. HanCode provides purchase and consumable-use operations and manages owned quantities. Effect application, timers, and field pickups remain with the Item System.
+   Coordinate purchasable item identifiers and prices with the Item System, which provides effect adapters, timers, and pickup behavior. HanCode provides purchase/use operations, two run slots, gameplay input hooks, and persistence of purchased quantities. Field pickups are removed only after the slot container accepts them; they do not consume purchased stock.
 
 3. Player & Enemy Ship Variety:  
-   We depend on this team to broadcast an 'Enemy Defeated' event containing the enemy information required to determine the appropriate drop rate and reward amount.
+   We depend on this team to broadcast an 'Enemy Defeated' event containing the enemy information required to determine the appropriate drop rate and reward amount. Campaign is the first reward integration target. The first ship-unlock check uses `ship.speedster`; this team owns its locked display and selection restriction, while HanCode supplies purchase, saving, and unlock queries. Standard and Heavy Tank remain free. The production price remains to be agreed after income is measured.
+
+4. Gameplay HUD (Friends):
+   HanCode supplies earned Credits data (balance plus pending rewards), read-only slot views, and a slot drawing method. Both teams will check the calls and placement against the existing HUD. The separator and active-buff display stay under the existing HUD design.
 
 ---
 
@@ -68,8 +71,12 @@ Currency System. Our team is responsible for managing the in-game currency econo
 
 | Area | Implemented components | Remaining integration |
 | --- | --- | --- |
-| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Frenchies connects the supplied screen to its existing Main Menu Shop entry and coordinates the return path. |
-| Consumable use | [ItemUseService](../src/currency/ItemUseService.java) uses registered effect adapters through [ConsumableActivation](../src/currency/ConsumableActivation.java). Ordinary rejection restores reserved stock; unexpected adapter failures block the service until the state is reconciled and the service is replaced. | Connect actual effects and gameplay input. Agree on repeat-use rules and saving after consumption with the relevant teams. |
-| Rewards | [RewardSystem](../src/currency/RewardSystem.java) accumulates rewards and settles them into the shared assets. | Coordinate settlement, saving, and failure recovery, then connect gameplay events and stage exit handling. |
+| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), shared startup assets, and existing Main Menu/return connections. Purchases report save failures separately and allow a save-only retry. | Confirm the complete navigation and purchase flow with the agreed products. |
+| Consumable use | [ItemUseService](../src/currency/ItemUseService.java) uses registered [ConsumableActivation](../src/currency/ConsumableActivation.java) adapters. [ItemSlots](../src/shop/ItemSlots.java) separates purchased and field items. GameScreen accepts a bound container and handles 1/2 key presses. Purchased uses save immediately; field uses do not change purchased stock. | Bind the actual effects and pickup callbacks, then connect one container to Core's Campaign run lifecycle. Keep unused slots across stages/life loss and clear them at run end. |
+| Rewards and saving | [RewardSystem](../src/currency/RewardSystem.java) accumulates rewards; [RewardSettlementCoordinator](../src/engine/RewardSettlementCoordinator.java) settles and saves them, with a save-only retry. [AssetSaveState](../src/engine/AssetSaveState.java) can share save results with purchases and item use. Load errors are reported rather than treated as a missing save. | Connect the shared controllers in Core, typed Campaign events, reward values, and success/failure/normal-exit settlement. The required event additions are not yet in the integration base. |
+| HUD | [AssetHudProvider](../src/hud/AssetHudProvider.java) supplies immutable Credits/slot snapshots. DrawManager provides a bounded slot drawing method using the existing style. | Connect the provider to the run and coordinate HUD placement with Friends. |
+| Ship unlock check | [ShopPreview](../test/shop/ShopPreview.java) supports a persistent, isolated Speedster profile with initial test funds and a temporary price. Restarting preserves the purchase and remaining balance. | KimchiBaguette connects the selection restriction and locked display; jointly verify selection before/after purchase. |
 
 The production Shop catalog remains empty until product IDs and prices are agreed with the content teams. Sample products are used only in tests and the preview. These components do not yet constitute a complete gameplay purchase/use/reward flow.
+
+Call examples, changed files, and the Speedster preview command are in the [integration guide](../docs/Shop-Item-Integration-Guide.md#12-run-slots-and-hud-hooks).
