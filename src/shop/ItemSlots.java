@@ -147,6 +147,11 @@ public final class ItemSlots {
         }
     }
 
+    /** An unexpected activation failure blocks further use and rebinding. */
+    public boolean hasFailure() {
+        return failed;
+    }
+
     /** Ends the run without removing unused purchased stock. */
     public void clear() {
         requireReady();

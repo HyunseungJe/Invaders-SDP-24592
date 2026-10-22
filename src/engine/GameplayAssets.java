@@ -19,6 +19,7 @@ public final class GameplayAssets {
     private final RewardSettlementCoordinator settlement;
     private ItemSlots slots;
     private AssetHudProvider hud;
+    private boolean itemUseFailed;
 
     public GameplayAssets(PlayerAssets assets, FileManager files, List<ShopProduct> products) {
         AssetSaveState saveState = new AssetSaveState();
@@ -36,6 +37,9 @@ public final class GameplayAssets {
     }
 
     public void beginRun() {
+        if (itemUseFailed) {
+            throw new IllegalStateException("Check assets and effects before starting another run.");
+        }
         if (slots != null) {
             throw new IllegalStateException("A Campaign run is already active.");
         }
@@ -84,7 +88,12 @@ public final class GameplayAssets {
     }
 
     public void endRun() {
-        getSlots().clear();
+        ItemSlots finishedSlots = getSlots();
+        if (finishedSlots.hasFailure()) {
+            itemUseFailed = true;
+        } else {
+            finishedSlots.clear();
+        }
         slots = null;
         hud = null;
     }

@@ -71,8 +71,14 @@ public class Frame extends JFrame {
 		currentScreen = screen;
 		if (closeRequested)
 			return 0;
-		currentScreen.initialize();
-		return currentScreen.run();
+		try {
+			currentScreen.initialize();
+			return currentScreen.run();
+		} catch (RuntimeException | Error failure) {
+			// A failed game loop cannot process a later close request.
+			dispose();
+			throw failure;
+		}
 	}
 
 	public final boolean isCloseRequested() {

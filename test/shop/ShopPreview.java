@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import javax.imageio.ImageIO;
 import screen.ShopScreen;
+import screen.Screen;
 import javax.swing.JOptionPane;
 
 /** Runs the shop with sample products and an isolated save file. */
@@ -151,8 +152,20 @@ public final class ShopPreview {
 
         run(frame, shop, new int[] {0, KeyEvent.VK_UP, 0, space},
                 new String[] {null, "16-back-option", null, null});
+        IllegalStateException failure = new IllegalStateException("Test screen failure");
+        try {
+            frame.setScreen(new Screen(frame.getWidth(), frame.getHeight(), 60) {
+                @Override protected void update() {
+                    throw failure;
+                }
+            });
+            throw new AssertionError("Screen failure did not propagate");
+        } catch (IllegalStateException exception) {
+            check(exception == failure, "Original screen failure preserved");
+        }
+        check(!frame.isDisplayable(), "Failed screen disposes the window");
         System.out.println("SMOKE PASSED: purchases, held input, rejection, save retry,"
-                + " reentry, reload, empty catalog, card navigation, Back and Escape.");
+                + " reentry, reload, empty catalog, card navigation, Back, Escape and failed-screen cleanup.");
     }
 
     private static void run(Frame frame, ShopController controller, final int[] keys, final String[] captures) {

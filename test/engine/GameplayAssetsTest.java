@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import shop.ItemSlots;
 import shop.ShopController;
 import shop.ShopTestFixtures;
@@ -168,6 +170,52 @@ class GameplayAssetsTest {
         assertEquals(PurchaseResult.SUCCESS, gameplay.getShop().purchase(ShopTestFixtures.CONSUMABLE));
         assertEquals(SettlementResult.SUCCESS, gameplay.prepareExit());
         assertEquals(Integer.MAX_VALUE - 90, assets.getBalance());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void failedActivationKeepsItsCauseWhenTheRunEnds(boolean purchased) throws Exception {
+        assertTrue(assets.restore(new PlayerAssetsState(1000, Collections.emptySet(),
+                Map.of(ShopTestFixtures.CONSUMABLE, 1))));
+        Core.getFileManager().savePlayerAssets(assets.snapshot());
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        byte[] saved = Files.readAllBytes(save);
+        IllegalArgumentException cause = new IllegalArgumentException("Test effect failure");
+        String itemId = purchased ? ShopTestFixtures.CONSUMABLE : "field.item";
+        Map<String, ConsumableActivation> broken = Map.of(itemId, new ConsumableActivation() {
+            @Override
+            public ItemUseResult validate() {
+                return ItemUseResult.SUCCESS;
+            }
+
+            @Override
+            public ItemUseResult activate() {
+                effects++;
+                throw cause;
+            }
+        });
+        gameplay.beginRun();
+        gameplay.bindItemEffects(broken, Map.of());
+        ItemSlots slots = gameplay.getSlots();
+        if (!purchased) assertTrue(slots.tryCollect(itemId));
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> {
+            try {
+                slots.tryUse(0);
+            } finally {
+                gameplay.endRun();
+            }
+        });
+
+        assertSame(cause, failure.getCause());
+        assertThrows(IllegalStateException.class, gameplay::getSlots);
+        assertThrows(IllegalStateException.class, gameplay::beginRun);
+        assertThrows(IllegalStateException.class, () -> slots.tryUse(0));
+        assertThrows(IllegalStateException.class, () -> slots.bind(adapters()));
+        assertEquals(1, effects);
+        assertEquals(purchased ? 0 : 1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertEquals(1000, assets.getBalance());
+        assertArrayEquals(saved, Files.readAllBytes(save));
     }
 
     private Map<String, ConsumableActivation> adapters() {
