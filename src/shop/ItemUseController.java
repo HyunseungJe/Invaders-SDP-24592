@@ -30,6 +30,14 @@ public final class ItemUseController {
     }
 
     /**
+     * Activates an item owned by a field slot, without changing inventory or saving.
+     * The caller clears that slot only on SUCCESS. The same failure rules as tryUse apply.
+     */
+    public ItemUseResult tryUseFieldItem(String itemId) {
+        return shop.useFieldItem(service, itemId);
+    }
+
+    /**
      * Returns the shared shop's purchase/use save status across gameplay contexts.
      * Reward settlement reports its save result separately.
      */

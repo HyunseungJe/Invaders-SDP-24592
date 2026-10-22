@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Uses purchased stock without charging currency again.
+ * Activates consumables and deducts stock only for purchased items.
  * Call on the gameplay thread that owns the shared assets.
  */
 public final class ItemUseService {
@@ -39,6 +39,15 @@ public final class ItemUseService {
      *         or this service cannot safely accept another use
      */
     public ItemUseResult tryUse(String itemId) {
+        return tryUse(itemId, true);
+    }
+
+    /** Activates a collected field item without reading or changing purchased stock. */
+    public ItemUseResult tryUseFieldItem(String itemId) {
+        return tryUse(itemId, false);
+    }
+
+    private ItemUseResult tryUse(String itemId, boolean purchased) {
         if (failed || usingItem) {
             failed = true;
             throw new IllegalStateException("Item use is blocked; check assets and effects first.");
@@ -50,7 +59,8 @@ public final class ItemUseService {
                 return ItemUseResult.INVALID_ITEM_ID;
             }
             ConsumableActivation activation = activations.get(itemId);
-            if (!catalog.isInventoryItem(itemId) || activation == null) {
+            if (activation == null || catalog.isUnlockable(itemId)
+                    || (purchased && !catalog.isInventoryItem(itemId))) {
                 return ItemUseResult.UNSUPPORTED_ITEM;
             }
 
@@ -58,12 +68,12 @@ public final class ItemUseService {
             if (result != ItemUseResult.SUCCESS) {
                 return result;
             }
-            if (!assets.removeItem(itemId, 1)) {
+            if (purchased && !assets.removeItem(itemId, 1)) {
                 return ItemUseResult.OUT_OF_STOCK;
             }
 
             result = checkActivationResult(activation.activate());
-            if (result != ItemUseResult.SUCCESS && !assets.addItem(itemId, 1)) {
+            if (result != ItemUseResult.SUCCESS && purchased && !assets.addItem(itemId, 1)) {
                 throw new IllegalStateException("Could not restore reserved stock.");
             }
             return result;

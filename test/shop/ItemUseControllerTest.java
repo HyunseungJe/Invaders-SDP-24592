@@ -62,6 +62,56 @@ class ItemUseControllerTest {
     }
 
     @Test
+    void fieldUseDoesNotSaveOrClearAPreviousSaveFailure() {
+        stock(2);
+        saver.denied = true;
+        assertEquals(ItemUseResult.SUCCESS, uses.tryUse(ITEM));
+        PlayerAssetsState before = assets.snapshot();
+        int writes = saver.calls;
+
+        assertEquals(ItemUseResult.SUCCESS, uses.tryUseFieldItem(ITEM));
+
+        assertState(before, assets.snapshot());
+        assertEquals(2, activation.calls);
+        assertEquals(writes, saver.calls);
+        assertEquals(ShopController.SaveStatus.FAILED, uses.getSaveStatus());
+    }
+
+    @Test
+    void fieldUseWithoutPurchasedStockDoesNotCreateASave() {
+        PlayerAssetsState before = assets.snapshot();
+
+        assertEquals(ItemUseResult.SUCCESS, uses.tryUseFieldItem(ITEM));
+
+        assertState(before, assets.snapshot());
+        assertEquals(1, activation.calls);
+        assertEquals(0, saver.calls);
+        assertFalse(Files.exists(path));
+    }
+
+    @Test
+    void fieldActivationCannotPurchaseOrUseAnotherContext() {
+        stock(2);
+        PlayerAssetsState before = assets.snapshot();
+        activation.onActivate = () -> shop.purchase(UNLOCK);
+        assertThrows(IllegalStateException.class, () -> uses.tryUseFieldItem(ITEM));
+        assertState(before, assets.snapshot());
+        assertEquals(0, saver.calls);
+
+        setUp();
+        stock(2);
+        before = assets.snapshot();
+        TestActivation otherEffect = new TestActivation();
+        ItemUseController other = shop.createItemUseController(Collections.singletonMap(ITEM, otherEffect));
+        activation.onActivate = () -> assertThrows(IllegalStateException.class, () -> other.tryUse(ITEM));
+        assertThrows(IllegalStateException.class, () -> uses.tryUseFieldItem(ITEM));
+        assertThrows(IllegalStateException.class, () -> uses.tryUse(ITEM));
+        assertState(before, assets.snapshot());
+        assertEquals(0, otherEffect.calls);
+        assertEquals(0, saver.calls);
+    }
+
+    @Test
     void purchaseUseSaveReloadUsesOneAssetStateWithoutChargingAgain() throws Exception {
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(ITEM));
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(ITEM));

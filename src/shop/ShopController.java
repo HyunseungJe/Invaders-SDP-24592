@@ -110,7 +110,8 @@ public final class ShopController {
 
     /**
      * Creates a controller for one gameplay context without loading, saving or copying assets.
-     * Adapters must follow ConsumableActivation's contract and use the catalog product IDs.
+     * Adapters must follow ConsumableActivation's contract and use stable item IDs.
+     * Purchased items must also be registered in the catalog.
      * Adapters must not change assets, settle rewards, start another use or request saving.
      * Reconcile an unexpected activation failure before creating a replacement controller.
      *
@@ -150,6 +151,14 @@ public final class ShopController {
     }
 
     synchronized ItemUseResult useItem(ItemUseService service, String itemId) {
+        return useItem(service, itemId, true);
+    }
+
+    synchronized ItemUseResult useFieldItem(ItemUseService service, String itemId) {
+        return useItem(service, itemId, false);
+    }
+
+    private ItemUseResult useItem(ItemUseService service, String itemId, boolean purchased) {
         if (activeItemUse != null) {
             // Let the active service latch reentry even if the adapter catches its exception.
             return activeItemUse.tryUse(itemId);
@@ -160,11 +169,11 @@ public final class ShopController {
             ItemUseResult result;
             activeItemUse = service;
             try {
-                result = service.tryUse(itemId);
+                result = purchased ? service.tryUse(itemId) : service.tryUseFieldItem(itemId);
             } finally {
                 activeItemUse = null;
             }
-            if (result == ItemUseResult.SUCCESS) {
+            if (purchased && result == ItemUseResult.SUCCESS) {
                 saveLatestAssets();
             }
             return result;

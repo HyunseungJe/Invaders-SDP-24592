@@ -87,6 +87,59 @@ class ItemUseServiceTest {
     }
 
     @Test
+    void fieldUseDoesNotConsumePurchasedStockOrRequireAShopProduct() {
+        activations.put("field_only", activation);
+        service = new ItemUseService(assets, catalog, activations);
+        PlayerAssetsState before = assets.snapshot();
+
+        assertEquals(ItemUseResult.SUCCESS, service.tryUseFieldItem(ITEM_ID));
+        assertEquals(2, activation.stockAtActivation);
+        assertEquals(ItemUseResult.SUCCESS, service.tryUseFieldItem("field_only"));
+        assertEquals(ItemUseResult.UNSUPPORTED_ITEM, service.tryUse("field_only"));
+        assertEquals(2, activation.activationCalls);
+        assertAssetsEqual(before);
+    }
+
+    @Test
+    void fieldRejectionsDoNotCreateOrRefundPurchasedStock() {
+        assertTrue(assets.removeItem(ITEM_ID, 2));
+        PlayerAssetsState before = assets.snapshot();
+        for (ItemUseResult rejection : rejections()) {
+            activation.activationResult = rejection;
+            assertEquals(rejection, service.tryUseFieldItem(ITEM_ID));
+            assertAssetsEqual(before);
+        }
+        activation.activationResult = ItemUseResult.SUCCESS;
+        assertEquals(ItemUseResult.SUCCESS, service.tryUseFieldItem(ITEM_ID));
+        assertAssetsEqual(before);
+    }
+
+    @Test
+    void fieldUseRejectsMissingAdaptersAndPermanentUnlocks() {
+        activations.put(UNLOCK_ID, activation);
+        service = new ItemUseService(assets, catalog, activations);
+        PlayerAssetsState before = assets.snapshot();
+
+        assertEquals(ItemUseResult.INVALID_ITEM_ID, service.tryUseFieldItem(null));
+        assertEquals(ItemUseResult.UNSUPPORTED_ITEM, service.tryUseFieldItem(OTHER_ID));
+        assertEquals(ItemUseResult.UNSUPPORTED_ITEM, service.tryUseFieldItem(UNLOCK_ID));
+        assertEquals(0, activation.validationCalls);
+        assertAssetsEqual(before);
+    }
+
+    @Test
+    void fieldFailureBlocksBothUsePathsWithoutChangingStock() {
+        activation.activationFailure = new IllegalStateException("Test effect failure");
+        PlayerAssetsState before = assets.snapshot();
+
+        assertThrows(IllegalStateException.class, () -> service.tryUseFieldItem(ITEM_ID));
+        assertThrows(IllegalStateException.class, () -> service.tryUseFieldItem(ITEM_ID));
+        assertServiceBlocked();
+        assertEquals(1, activation.activationCalls);
+        assertAssetsEqual(before);
+    }
+
+    @Test
     void purchaseAndUseShareAssetsWithoutChargingTwice() {
         assets.removeItem(ITEM_ID, 2);
         PurchaseSystem purchases = new PurchaseSystem(assets, catalog);
