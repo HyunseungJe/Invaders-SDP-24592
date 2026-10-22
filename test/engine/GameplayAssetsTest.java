@@ -166,7 +166,7 @@ class GameplayAssetsTest {
     }
 
     @Test
-    void exitCannotDiscardRewardsThatDidNotFitTheBalance() {
+    void exitPreparationRetainsRewardsThatDidNotFitTheBalance() {
         assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE,
                 Collections.emptySet(), Collections.emptyMap())));
         assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));

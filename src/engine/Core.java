@@ -386,14 +386,15 @@ public final class Core {
 		while (result != SettlementResult.SUCCESS) {
 			String message = result == SettlementResult.SETTLEMENT_FAILED
 					? "Earned credits could not be added to your balance.\n"
-							+ "Return to the shop to spend credits before exiting."
-					: "Your progress could not be saved. Retry or return to the menu?";
+							+ "Exiting now will lose these pending rewards."
+					: "Your progress could not be saved.\n"
+							+ "Exiting now will lose unsaved progress.";
 			int choice = JOptionPane.showOptionDialog(frame, message,
 					"Unable to save progress", JOptionPane.DEFAULT_OPTION,
 					JOptionPane.WARNING_MESSAGE, null,
-					new String[] { "Retry", "Return to menu" }, "Retry");
+					new String[] { "Retry", "Return to menu", "Exit without saving" }, "Retry");
 			if (choice != 0)
-				return false;
+				return choice == 2;
 			result = gameplayAssets.prepareExit();
 		}
 		return true;

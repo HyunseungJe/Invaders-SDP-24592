@@ -249,7 +249,7 @@ Core creates one `GameplayAssets` session from the loaded assets. It shares the 
 
 Core calls `settleStage()` after a Campaign stage returns, including failure and a normal window-close request. This transfers only rewards already accumulated; it does not award a completion bonus. The forthcoming Campaign event listener must award that bonus exactly once from the agreed completion event. HanCode still needs to configure reward values and subscribe to the typed events once their publication paths are available in the integration base. Ordinary gameplay does not yet earn credits.
 
-Saving failures keep runtime assets intact and offer a save-only retry. Window closing finishes the current frame and returns to Core. Core saves before disposing the window; if that fails, the player may retry or return to the menu. Balance overflow retains pending rewards instead of clearing them. These rules cover normal application exits, not forced process termination.
+Saving failures keep runtime assets intact and offer a save-only retry. Window closing finishes the current frame and returns to Core. Core attempts to save before disposing the window. If that fails, it warns about losing unsaved progress and offers Retry, Return to menu, or Exit without saving. Closing this warning returns to the menu. Balance overflow retains pending rewards instead of clearing them. These rules cover normal application exits, not forced process termination.
 
 ### Two slots
 
