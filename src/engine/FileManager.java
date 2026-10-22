@@ -25,6 +25,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -466,6 +468,7 @@ public final class FileManager {
 		try (InputStream is = Files.newInputStream(target)) {
 			properties.load(is);
 		} catch (NoSuchFileException e) {
+			validateSaveParent(target);
 			logger.info("Save file not found at " + target + ". Returning default initial state.");
 			return new PlayerAssetsState(0, Collections.<String>emptySet(),
 					Collections.<String, Integer>emptyMap());
@@ -573,4 +576,20 @@ public final class FileManager {
 			throw new IOException("Invalid asset state invariant: " + e.getMessage(), e);
 		}
 	}
+
+	/** A missing save is valid only beneath an existing directory. */
+	private void validateSaveParent(final Path target) throws IOException {
+		Path parent = target.toAbsolutePath().getParent();
+		while (parent != null) {
+			try {
+				if (!Files.readAttributes(parent, BasicFileAttributes.class).isDirectory())
+					throw new NotDirectoryException(parent.toString());
+				return;
+			} catch (NoSuchFileException e) {
+				parent = parent.getParent();
+			}
+		}
+		throw new IOException("Save directory could not be resolved: " + target);
+	}
+
 }

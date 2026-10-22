@@ -91,6 +91,18 @@ class FileManagerTest {
         assertFalse(Files.exists(missingPath));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"save-location/player_assets.properties",
+            "save-location/missing/player_assets.properties"})
+    void testLoadRejectsAFileInTheParentPath(String relativePath) throws IOException {
+        Path parentFile = tempDir.resolve("save-location");
+        Files.writeString(parentFile, "unchanged");
+
+        assertThrows(IOException.class,
+                () -> fileManager.loadPlayerAssets(tempDir.resolve(relativePath)));
+        assertEquals("unchanged", Files.readString(parentFile));
+    }
+
     @Test
     @DisplayName("A path lookup error does not return empty assets")
     void testLoadUnresolvablePathThrowsIOException() {
