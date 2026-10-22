@@ -77,6 +77,39 @@ class FileManagerTest {
         assertTrue(ex.getMessage().contains("Malformed URL-encoded unlocked content ID"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"player_assets.properties", "new-profile/player_assets.properties"})
+    @DisplayName("A missing save returns empty assets without creating a file")
+    void testLoadMissingSaveReturnsEmptyState(String relativePath) throws IOException {
+        Path missingPath = tempDir.resolve(relativePath);
+
+        PlayerAssetsState loaded = fileManager.loadPlayerAssets(missingPath);
+
+        assertEquals(0, loaded.getBalance());
+        assertTrue(loaded.getUnlockedContentIds().isEmpty());
+        assertTrue(loaded.getItemQuantities().isEmpty());
+        assertFalse(Files.exists(missingPath));
+    }
+
+    @Test
+    @DisplayName("A path lookup error does not return empty assets")
+    void testLoadUnresolvablePathThrowsIOException() {
+        Path invalidPath = tempDir.resolve("x".repeat(300));
+        assumeFalse(Files.exists(invalidPath) || Files.notExists(invalidPath),
+                "Filesystem must reject an overlong filename");
+
+        assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(invalidPath));
+    }
+
+    @Test
+    @DisplayName("A directory at the save path is reported as a read error")
+    void testLoadDirectoryThrowsIOException() throws IOException {
+        Files.createDirectory(savePath);
+
+        assertThrows(IOException.class, () -> fileManager.loadPlayerAssets(savePath));
+        assertTrue(Files.isDirectory(savePath));
+    }
+
     @Test
     @DisplayName("loadPlayerAssets throws IOException when item ID has malformed URL encoding")
     void testLoadMalformedEncodedInventoryIdThrowsIOException() throws IOException {

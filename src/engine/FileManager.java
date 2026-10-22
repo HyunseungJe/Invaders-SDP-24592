@@ -24,6 +24,7 @@ import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -443,39 +444,31 @@ public final class FileManager {
 	/**
 	 * Loads the player asset state from a specific path with strict validation.
 	 *
-	 * <p>If sourcePath is null, the default save path is used.
-	 * When Files.exists() returns false, this method returns the default
-	 * state with zero balance, no unlocked content, and no owned items.
-	 * This may occur when the file is missing or its existence cannot be
-	 * determined, including certain file access errors.
+	 * <p>If sourcePath is null, the default save path is used. A missing file
+	 * returns zero balance, no unlocked content, and no owned items.
+	 * Other read errors are propagated so an unreadable save is not reset.
 	 *
 	 * <p>Existing save files are validated for format version, required
 	 * properties, balance, asset identifiers, and item quantities.
-	 * When an existing save file is detected, empty, corrupted, or malformed
-	 * contents are rejected with an IOException.
-	 * However, failures to determine file existence may result in the
-	 * default state rather than an IOException.
+	 * Empty, corrupted, or malformed contents are rejected with an IOException.
 	 *
 	 * <p>This method only reads the saved data and does not modify the file.
 	 *
 	 * @param sourcePath file path to load from, or null to use the default save path
-	 * @return the loaded PlayerAssetsState, or an empty default state if Files.exists() returns false
+	 * @return the loaded PlayerAssetsState, or an empty default state if the file is missing
 	 * @throws IOException if the save file is invalid or cannot be read
 	 */
 
 	public PlayerAssetsState loadPlayerAssets(final Path sourcePath) throws IOException {
 		Path target = (sourcePath != null) ? sourcePath : resolveStoragePath(ASSETS_FILENAME);
 
-		// Only a genuinely missing file produces the default state
-		if (!Files.exists(target)) {
-			logger.info("Save file not found at " + target + ". Returning default initial state.");
-			return new PlayerAssetsState(0, Collections.<String>emptySet(),
-					Collections.<String, Integer>emptyMap());
-		}
-
 		Properties properties = new Properties();
 		try (InputStream is = Files.newInputStream(target)) {
 			properties.load(is);
+		} catch (NoSuchFileException e) {
+			logger.info("Save file not found at " + target + ". Returning default initial state.");
+			return new PlayerAssetsState(0, Collections.<String>emptySet(),
+					Collections.<String, Integer>emptyMap());
 		} catch (IllegalArgumentException e) {
 			throw new IOException("Malformed properties formatting in save file: " + e.getMessage(), e);
 		}
