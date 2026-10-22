@@ -39,6 +39,7 @@ import entity.Ship;
 import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
+import shop.ItemSlots;
 import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
@@ -110,6 +111,8 @@ public class GameScreen extends Screen {
 	private Set<BossBullet> bossBullets;
 
 	private ItemManager itemManager;
+	private ItemSlots itemSlots;
+	private final boolean[] itemKeysDown = new boolean[ItemSlots.SLOT_COUNT];
 	private final Random itemDropRandom = new Random();
 	private boolean chameleonDroppedThisLevel = false;
 	private boolean shieldDroppedThisLevel = false;
@@ -490,6 +493,13 @@ public class GameScreen extends Screen {
 		// Outside the input-delay check: a shield that runs out has to be
 		// announced even while the level is finishing.
 		this.playerStatus.update();
+		if (this.itemSlots != null) {
+			processItemInput(this.inputDelay.checkFinished() && !this.levelFinished
+					&& this.playerStatus.isAlive() && !this.ship.isDestroyed(),
+					ControlsConfig.getKey(ControlsConfig.LEFT),
+					ControlsConfig.getKey(ControlsConfig.RIGHT),
+					ControlsConfig.getKey(ControlsConfig.FIRE));
+		}
 
 		if (this.inputDelay.checkFinished() && !this.levelFinished) {
 			if (this.runSession != null)
@@ -1191,6 +1201,31 @@ public class GameScreen extends Screen {
 
 	public String getActiveRunId() {
 		return this.runSession == null ? null : this.runSession.getRunId();
+	}
+
+	/** Attaches the run's bound slots without changing their contents. */
+	public void setItemSlots(final ItemSlots slots) {
+		this.itemSlots = slots;
+		for (int index = 0; index < this.itemKeysDown.length; index++)
+			this.itemKeysDown[index] = inputManager.isKeyDown(KeyEvent.VK_1 + index);
+	}
+
+	/** Remove a field pickup only when its item was accepted into a slot. */
+	public boolean tryCollectItem(final String itemId) {
+		return this.itemSlots != null && this.itemSlots.tryCollect(itemId);
+	}
+
+	void processItemInput(final boolean acceptsInput, final int leftKey,
+			final int rightKey, final int fireKey) {
+		for (int index = 0; index < this.itemKeysDown.length; index++) {
+			int key = KeyEvent.VK_1 + index;
+			boolean down = inputManager.isKeyDown(key);
+			boolean boundElsewhere = key == leftKey || key == rightKey || key == fireKey;
+			if (this.itemSlots != null && acceptsInput && !boundElsewhere
+					&& down && !this.itemKeysDown[index])
+				this.itemSlots.tryUse(index);
+			this.itemKeysDown[index] = down;
+		}
 	}
 
 	/** Keep the extra movement inside the existing playfield borders. */
