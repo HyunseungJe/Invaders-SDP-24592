@@ -17,6 +17,8 @@ import java.util.logging.Logger;
 
 import screen.Screen;
 import hud.FloatingScoreHud;
+import hud.AssetHudSnapshot;
+import shop.ItemSlots;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
 import shop.ShopController.SaveStatus;
@@ -1366,6 +1368,43 @@ public final class DrawManager {
         backBufferGraphics.setFont(fontRegular);
         backBufferGraphics.setColor(Color.ORANGE);
         backBufferGraphics.drawString("GRENADE [G] x" + grenades, 10, 55);
+    }
+
+    /** Draws two slot rows inside the supplied area and returns their total height. */
+    public int drawItemSlots(final Screen screen, final AssetHudSnapshot state,
+            final int x, final int y, final int width) {
+        int availableWidth = Math.min(width, screen.getWidth() - x);
+        if (availableWidth <= 0) {
+            return 0;
+        }
+        int lineHeight = fontRegularMetrics.getHeight() + 4;
+        int height = lineHeight * state.getSlots().size();
+        Graphics slotGraphics = backBufferGraphics.create(x, y, availableWidth, height);
+        try {
+            slotGraphics.setFont(fontRegular);
+            FontMetrics metrics = slotGraphics.getFontMetrics();
+            int baseline = metrics.getAscent();
+            for (AssetHudSnapshot.SlotView slot : state.getSlots()) {
+                String prefix = "[" + slot.getKeyNumber() + "] ";
+                String suffix = slot.isEmpty() ? ""
+                        : slot.getSource() == ItemSlots.Source.PURCHASED
+                                ? " x" + slot.getPurchasedQuantity() : " (Field)";
+                String name = slot.getName();
+                if (metrics.stringWidth(prefix + name + suffix) > availableWidth) {
+                    while (!name.isEmpty()
+                            && metrics.stringWidth(prefix + name + "..." + suffix) > availableWidth) {
+                        name = name.substring(0, name.length() - 1);
+                    }
+                    name += "...";
+                }
+                slotGraphics.setColor(slot.isEmpty() ? GameColors.TEXT_DIM : GameColors.TEXT);
+                slotGraphics.drawString(prefix + name + suffix, 0, baseline);
+                baseline += lineHeight;
+            }
+        } finally {
+            slotGraphics.dispose();
+        }
+        return height;
     }
 
     /**
