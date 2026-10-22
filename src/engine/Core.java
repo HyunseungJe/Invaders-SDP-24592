@@ -38,6 +38,7 @@ import screen.SettingsScreen;
 import screen.ControlsSettingsScreen;
 import screen.GameplaySettingsScreen;
 import shop.ShopController;
+import shop.ShopProducts;
 
 /**
  * Implements core game logic.
@@ -66,6 +67,7 @@ public final class Core {
 	private static PlayerAssets playerAssets;
 	/** Shop controller shared for this application session. */
 	private static ShopController shopController;
+	private static GameplayAssets gameplayAssets;
 	private static RecordsService recordsService;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
@@ -159,44 +161,52 @@ public final class Core {
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString());
 					recordsService.startRun(runSession.getRunId());
-					do {
-						// One extra live every few levels.
-						boolean bonusLife = gameState.getLevel()
-								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < selectedShip.getMaxLives();
+					gameplayAssets.beginRun();
+					try {
+						do {
+							// One extra live every few levels.
+							boolean bonusLife = gameState.getLevel()
+									% EXTRA_LIFE_FRECUENCY == 0
+									&& gameState.getLivesRemaining() < selectedShip.getMaxLives();
 
-						currentScreen = new GameScreen(gameState,
-								applyDifficulty(CampaignStageData
-										.getStageSettings(gameState.getLevel())),
-								bonusLife, width, height, FPS, selectedShip,
-								runSession);
-						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
-								+ " game screen at " + FPS + " fps.");
-						frame.setScreen(currentScreen);
-						LOGGER.info("Closing game screen.");
+							currentScreen = new GameScreen(gameState,
+									applyDifficulty(CampaignStageData
+											.getStageSettings(gameState.getLevel())),
+									bonusLife, width, height, FPS, selectedShip,
+									runSession);
+							((GameScreen) currentScreen).setGameplayAssets(gameplayAssets);
+							LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
+									+ " game screen at " + FPS + " fps.");
+							frame.setScreen(currentScreen);
+							LOGGER.info("Closing game screen.");
 
-						boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
-						gameState = ((GameScreen) currentScreen).getGameState();
+							boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
+							gameState = ((GameScreen) currentScreen).getGameState();
+							if (!settleStageWithRetry())
+								break;
 
-						if (!stageCleared) {
-							LOGGER.info("Stage " + gameState.getLevel()
-									+ " failed. Not advancing.");
-							break;
-						}
+							if (!stageCleared) {
+								LOGGER.info("Stage " + gameState.getLevel()
+										+ " failed. Not advancing.");
+								break;
+							}
 
-						CampaignManager.updateMaxCampaignStage(
-								Math.min(gameState.getLevel() + 1,
-										CampaignStageData.getTotalStages()));
-						LOGGER.info("Highest Stage is: " + CampaignManager.getMaxCampaignStage());
+							CampaignManager.updateMaxCampaignStage(
+									Math.min(gameState.getLevel() + 1,
+											CampaignStageData.getTotalStages()));
+							LOGGER.info("Highest Stage is: " + CampaignManager.getMaxCampaignStage());
 
-						gameState = new GameState(gameState.getLevel() + 1,
-								gameState.getScore(),
-								gameState.getLivesRemaining(),
-								gameState.getBulletsShot(),
-								gameState.getShipsDestroyed());
+							gameState = new GameState(gameState.getLevel() + 1,
+									gameState.getScore(),
+									gameState.getLivesRemaining(),
+									gameState.getBulletsShot(),
+									gameState.getShipsDestroyed());
 
-					} while (gameState.getLivesRemaining() > 0
-							&& gameState.getLevel() <= CampaignStageData.getTotalStages());
+						} while (gameState.getLivesRemaining() > 0
+								&& gameState.getLevel() <= CampaignStageData.getTotalStages());
+					} finally {
+						gameplayAssets.endRun();
+					}
 
 					RunRecord completedRun = runSession.finish(gameState.getScore(),
 							gameState.getShipsDestroyed(), System.currentTimeMillis());
@@ -321,16 +331,23 @@ public final class Core {
 
 	static ShopController initializeShop(final PlayerAssets assets,
 			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
+		return initializeGameplayAssets(assets, files, savedAssets).getShop();
+	}
+
+	static GameplayAssets initializeGameplayAssets(final PlayerAssets assets,
+			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
 		if (!assets.restore(savedAssets)) {
 			throw new IOException("Loaded assets could not be restored.");
 		}
-		return new ShopController(assets, files);
+		return new GameplayAssets(assets, files, ShopProducts.availableProducts());
 	}
 
 	private static boolean initializeShopWithRetry() {
 		while (true) {
 			try {
-				shopController = initializeShop(playerAssets, getFileManager());
+				gameplayAssets = initializeGameplayAssets(playerAssets, getFileManager(),
+						getFileManager().loadPlayerAssets());
+				shopController = gameplayAssets.getShop();
 				return true;
 			} catch (IOException exception) {
 				LOGGER.warning("Player assets could not be loaded: " + exception);
@@ -347,6 +364,27 @@ public final class Core {
 				return false;
 			}
 		}
+	}
+
+	private static boolean settleStageWithRetry() {
+		SettlementResult result = gameplayAssets.settleStage();
+		if (result == SettlementResult.SETTLEMENT_FAILED) {
+			JOptionPane.showMessageDialog(frame,
+					"Earned credits could not be added to your balance.\n"
+							+ "They remain pending. Spend credits in the shop before retrying.",
+					"Unable to settle rewards", JOptionPane.WARNING_MESSAGE);
+			return false;
+		}
+		while (result == SettlementResult.SAVE_FAILED) {
+			int choice = JOptionPane.showOptionDialog(frame,
+					"Your progress is still available in this session, but could not be saved.",
+					"Unable to save progress", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.WARNING_MESSAGE, null, new String[] { "Retry", "Continue" }, "Retry");
+			if (choice != 0)
+				break;
+			result = gameplayAssets.retrySave();
+		}
+		return true;
 	}
 
 	private static GameSettings applyDifficulty(

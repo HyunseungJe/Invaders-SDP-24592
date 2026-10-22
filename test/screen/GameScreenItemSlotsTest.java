@@ -7,6 +7,7 @@ import currency.PlayerAssets;
 import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
+import engine.GameplayAssets;
 import entity.PlayerStatus;
 import entity.Ship;
 import java.awt.Canvas;
@@ -193,6 +194,58 @@ class GameScreenItemSlotsTest {
             AudioManager.stopBGM();
             AudioManager.setMuted(previouslyMuted);
         }
+    }
+
+    @Test
+    void campaignStagesKeepSlotsAndRebindEffectsToTheNewScreen() {
+        boolean previouslyMuted = AudioManager.isMuted();
+        AudioManager.setMuted(true);
+        GameplayAssets gameplay = new GameplayAssets(new PlayerAssets(), Core.getFileManager(),
+                java.util.Collections.emptyList());
+        gameplay.beginRun();
+        final int[] stageEffects = {0, 0};
+        try {
+            screen.setGameplayAssets(gameplay);
+            screen.initialize();
+            screen.bindItemEffects(stageAdapter(stageEffects, 0), Map.of("field.item", "Field item"));
+            assertTrue(screen.tryCollectItem("field.item"));
+            assertTrue(screen.damagePlayer(1, "test"));
+            assertEquals("field.item", screen.getAssetHudSnapshot().getSlots().get(0).getItemId());
+            ItemSlots carried = gameplay.getSlots();
+
+            GameScreen next = new GameScreen(new GameState(2, 0, 2, 0, 0),
+                    new GameSettings(1, 1, 60, 2000), false, 448, 520, 60);
+            next.setGameplayAssets(gameplay);
+            next.initialize();
+            next.bindItemEffects(stageAdapter(stageEffects, 1), Map.of("field.item", "Field item"));
+            next.inputDelay = Core.getCooldown(0);
+            assertSame(carried, gameplay.getSlots());
+            assertEquals("field.item", next.getAssetHudSnapshot().getSlots().get(0).getItemId());
+            key(KeyEvent.VK_1, true);
+            next.update();
+
+            assertArrayEquals(new int[] {0, 1}, stageEffects);
+            assertTrue(next.getAssetHudSnapshot().getSlots().get(0).isEmpty());
+        } finally {
+            gameplay.endRun();
+            AudioManager.stopBGM();
+            AudioManager.setMuted(previouslyMuted);
+        }
+    }
+
+    private Map<String, ConsumableActivation> stageAdapter(int[] counts, int stage) {
+        return Map.of("field.item", new ConsumableActivation() {
+            @Override
+            public ItemUseResult validate() {
+                return ItemUseResult.SUCCESS;
+            }
+
+            @Override
+            public ItemUseResult activate() {
+                counts[stage]++;
+                return ItemUseResult.SUCCESS;
+            }
+        });
     }
 
     private Object read(String name) throws Exception {

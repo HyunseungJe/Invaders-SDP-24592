@@ -40,6 +40,9 @@ import entity.ShipType;
 import audio.AudioManager;
 import hud.FloatingScoreHud;
 import shop.ItemSlots;
+import engine.GameplayAssets;
+import currency.ConsumableActivation;
+import hud.AssetHudSnapshot;
 import records.RunSession;
 import records.RecordsService;
 import records.Achievement;
@@ -112,6 +115,7 @@ public class GameScreen extends Screen {
 
 	private ItemManager itemManager;
 	private ItemSlots itemSlots;
+	private GameplayAssets gameplayAssets;
 	private final boolean[] itemKeysDown = new boolean[ItemSlots.SLOT_COUNT];
 	private final Random itemDropRandom = new Random();
 	private boolean chameleonDroppedThisLevel = false;
@@ -1201,6 +1205,26 @@ public class GameScreen extends Screen {
 
 	public String getActiveRunId() {
 		return this.runSession == null ? null : this.runSession.getRunId();
+	}
+
+	/** Shares the Campaign run's slots and HUD data with this stage. */
+	public void setGameplayAssets(final GameplayAssets assets) {
+		if (assets == null)
+			throw new IllegalArgumentException("Gameplay assets cannot be null.");
+		setItemSlots(assets.getSlots());
+		this.gameplayAssets = assets;
+	}
+
+	/** Called by the item integration after the current ship and effects exist. */
+	public void bindItemEffects(final Map<String, ConsumableActivation> effects,
+			final Map<String, String> fieldItemNames) {
+		if (this.gameplayAssets != null)
+			this.gameplayAssets.bindItemEffects(effects, fieldItemNames);
+	}
+
+	/** Null for screens outside the shared Campaign asset lifecycle. */
+	public AssetHudSnapshot getAssetHudSnapshot() {
+		return this.gameplayAssets == null ? null : this.gameplayAssets.snapshot();
 	}
 
 	/** Attaches the run's bound slots without changing their contents. */
