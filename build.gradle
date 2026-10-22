@@ -75,6 +75,9 @@ tasks.named('test', Test) {
     useJUnitPlatform()
     systemProperty 'java.awt.headless', 'true'
     systemProperty 'file.encoding', 'UTF-8'
+    // Input tests use temporary preferences instead of the player's saved bindings.
+    systemProperty 'java.util.prefs.PreferencesFactory',
+            'screen.InfiniteGameScreenControlsTest$MemoryPreferencesFactory'
     def testClasspath = sourceSets.test.runtimeClasspath
     def coverage = extensions.getByType(JacocoTaskExtension)
     // Resolve arguments when the test JVM launches, including isolated child JVM coverage.
