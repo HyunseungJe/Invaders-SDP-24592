@@ -7,6 +7,7 @@ import currency.RewardSystem;
 import currency.ShopCatalog.Category;
 import engine.Core;
 import engine.FileManager;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,6 +35,56 @@ class ShopControllerTest {
         saveFile = new ShopTestFixtures.SaveFile(files, save);
         assets = ShopTestFixtures.fundedAssets();
         shop = ShopTestFixtures.controller(assets, saveFile);
+    }
+
+    @Test
+    void speedsterPreviewStartsLockedAndKeepsPurchaseAfterRestart() throws Exception {
+        Path profile = temp.resolve("speedster-profile");
+        ShopController preview = ShopPreview.openSpeedsterProfile(profile, files);
+        assertEquals(1000, preview.snapshot().getBalance());
+        assertFalse(preview.snapshot().getUnlockedContentIds().contains("ship.speedster"));
+        assertEquals(1, preview.getProducts().size());
+        assertEquals(PurchaseResult.SUCCESS, preview.purchase("ship.speedster"));
+
+        ShopController restarted = ShopPreview.openSpeedsterProfile(profile, files);
+
+        assertEquals(500, restarted.snapshot().getBalance());
+        assertTrue(restarted.snapshot().getUnlockedContentIds().contains("ship.speedster"));
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, restarted.purchase("ship.speedster"));
+        PlayerAssets restored = new PlayerAssets();
+        assertTrue(restored.restore(files.loadPlayerAssets(profile.resolve(FileManager.ASSETS_FILENAME))));
+        assertTrue(restored.isUnlocked("ship.speedster"));
+    }
+
+    @Test
+    void speedsterPreviewDoesNotRefillAnExistingEmptyBalance() throws Exception {
+        Path profile = temp.resolve("existing-profile");
+        Files.createDirectories(profile);
+        Path profileSave = profile.resolve(FileManager.ASSETS_FILENAME);
+        files.savePlayerAssets(new PlayerAssets().snapshot(), profileSave);
+        byte[] before = Files.readAllBytes(profileSave);
+
+        ShopController preview = ShopPreview.openSpeedsterProfile(profile, files);
+
+        assertEquals(0, preview.snapshot().getBalance());
+        assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, preview.purchase("ship.speedster"));
+        assertArrayEquals(before, Files.readAllBytes(profileSave));
+    }
+
+    @Test
+    void speedsterPreviewPreservesAnUnreadableOrInvalidSave() throws Exception {
+        Path profile = temp.resolve("invalid-profile");
+        Files.createDirectories(profile);
+        Path profileSave = profile.resolve(FileManager.ASSETS_FILENAME);
+        byte[] invalid = "version=999\nbalance=0\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(profileSave, invalid);
+
+        assertThrows(IOException.class, () -> ShopPreview.openSpeedsterProfile(profile, files));
+        assertArrayEquals(invalid, Files.readAllBytes(profileSave));
+        Path blockedProfile = temp.resolve("not-a-directory");
+        Files.write(blockedProfile, new byte[] {1});
+        assertThrows(IOException.class, () -> ShopPreview.openSpeedsterProfile(blockedProfile, files));
+        assertArrayEquals(new byte[] {1}, Files.readAllBytes(blockedProfile));
     }
 
     @Test

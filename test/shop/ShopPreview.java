@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import javax.imageio.ImageIO;
 import screen.ShopScreen;
@@ -31,20 +32,26 @@ public final class ShopPreview {
 
     public static void main(String[] args) throws Exception {
         boolean smoke = args.length > 0 && "--smoke".equals(args[0]);
-        output = Files.createTempDirectory(smoke ? "shop-smoke-" : "shop-preview-");
+        boolean speedster = args.length == 2 && "--speedster-profile".equals(args[0]);
+        if (args.length != 0 && !(smoke && args.length == 1) && !speedster) {
+            throw new IllegalArgumentException("Usage: ShopPreview [--smoke | --speedster-profile <directory>]");
+        }
+        output = speedster ? Path.of(args[1]).toAbsolutePath().normalize()
+                : Files.createTempDirectory(smoke ? "shop-smoke-" : "shop-preview-");
         System.out.println("Preview files: " + output);
         FileManager files = Core.getFileManager();
         ShopTestFixtures.SaveFile saveFile = new ShopTestFixtures.SaveFile(files,
                 output.resolve("assets.properties"));
+        PlayerAssets assets = ShopTestFixtures.fundedAssets();
+        ShopController controller = speedster ? openSpeedsterProfile(output, files)
+                : ShopTestFixtures.controller(assets, saveFile,
+                        smoke ? ShopTestFixtures.products() : ShopTestFixtures.previewProducts());
         boolean originalMuted = AudioManager.isMuted();
         AudioManager.setMuted(true);
         Frame frame = new Frame(448, 520);
         frame.setTitle("Shop preview - sample products only");
         Core.getDrawManager().setFrame(frame);
         try {
-            PlayerAssets assets = ShopTestFixtures.fundedAssets();
-            ShopController controller = ShopTestFixtures.controller(assets, saveFile,
-                    smoke ? ShopTestFixtures.products() : ShopTestFixtures.previewProducts());
             if (smoke) {
                 smoke(frame, assets, controller, files, saveFile);
             } else {
@@ -68,6 +75,24 @@ public final class ShopPreview {
             AudioManager.setMuted(originalMuted);
             frame.dispose();
         }
+    }
+
+    /** Persistent test profile: initial funds once, no unlock granted before purchase. */
+    static ShopController openSpeedsterProfile(Path directory, FileManager files) throws IOException {
+        Files.createDirectories(directory);
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        PlayerAssetsState saved = files.loadPlayerAssets(save);
+        PlayerAssets assets = new PlayerAssets();
+        if (Files.notExists(save)) {
+            assets = ShopTestFixtures.fundedAssets();
+            files.savePlayerAssets(assets.snapshot(), save);
+        } else if (!assets.restore(saved)) {
+            throw new IOException("Preview assets could not be restored.");
+        }
+        ShopProduct speedster = new ShopProduct("ship.speedster", "Speedster", Category.UNLOCKABLE,
+                500, "Permanent ship unlock. Preview price only.");
+        return ShopTestFixtures.controller(assets, new ShopTestFixtures.SaveFile(files, save),
+                Collections.singletonList(speedster));
     }
 
     private static void smoke(Frame frame, PlayerAssets assets, ShopController shop, FileManager files,
