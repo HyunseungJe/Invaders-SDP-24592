@@ -1,10 +1,13 @@
 package engine;
 
+import campaign.CampaignManager;
+import campaign.CampaignStageData;
 import currency.ConsumableActivation;
 import currency.ItemUseResult;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -27,9 +30,12 @@ class GameplayAssetsTest {
     private PlayerAssets assets;
     private GameplayAssets gameplay;
     private int effects;
+    private int previousCampaignStage;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        previousCampaignStage = CampaignManager.getMaxCampaignStage();
+        setCampaignStage(1);
         previousDirectory = System.getProperty("invaders.storageDir");
         System.setProperty("invaders.storageDir", directory.toString());
         assets = ShopTestFixtures.fundedAssets();
@@ -37,7 +43,8 @@ class GameplayAssetsTest {
     }
 
     @AfterEach
-    void restoreDirectory() {
+    void restoreDirectory() throws Exception {
+        setCampaignStage(previousCampaignStage);
         if (previousDirectory == null) System.clearProperty("invaders.storageDir");
         else System.setProperty("invaders.storageDir", previousDirectory);
     }
@@ -216,6 +223,67 @@ class GameplayAssetsTest {
         assertEquals(purchased ? 0 : 1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
         assertEquals(1000, assets.getBalance());
         assertArrayEquals(saved, Files.readAllBytes(save));
+    }
+
+    @Test
+    void clearedStageRemainsUnlockedWhenRewardSettlementOverflows() {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE,
+                Collections.emptySet(), Collections.emptyMap())));
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+
+        assertEquals(SettlementResult.SETTLEMENT_FAILED,
+                Core.finishCampaignStage(gameplay, 1, true));
+
+        assertEquals(2, CampaignManager.getMaxCampaignStage());
+        assertEquals(Integer.MAX_VALUE, assets.getBalance());
+        assertEquals(10, gameplay.getRewards().getPendingCurrency());
+        assertFalse(Files.exists(directory.resolve(FileManager.ASSETS_FILENAME)));
+    }
+
+    @Test
+    void clearedStageRemainsUnlockedAfterSaveFailureAndRetry() throws Exception {
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        Files.createDirectory(save);
+        Path blocker = Files.writeString(save.resolve("blocker"), "keep");
+
+        assertEquals(SettlementResult.SAVE_FAILED, Core.finishCampaignStage(gameplay, 1, true));
+        assertEquals(2, CampaignManager.getMaxCampaignStage());
+        assertEquals(1010, assets.getBalance());
+        assertEquals(0, gameplay.getRewards().getPendingCurrency());
+        Files.delete(blocker);
+        Files.delete(save);
+
+        assertEquals(SettlementResult.SUCCESS, gameplay.retrySave());
+        assertEquals(2, CampaignManager.getMaxCampaignStage());
+        assertEquals(1010, Core.getFileManager().loadPlayerAssets().getBalance());
+    }
+
+    @Test
+    void failedStageSettlesEarnedRewardsWithoutUnlockingAnotherStage() {
+        assertTrue(gameplay.getRewards().rewardEnemy("BASIC"));
+
+        assertEquals(SettlementResult.SUCCESS, Core.finishCampaignStage(gameplay, 1, false));
+
+        assertEquals(1, CampaignManager.getMaxCampaignStage());
+        assertEquals(1010, assets.getBalance());
+        assertEquals(0, gameplay.getRewards().getPendingCurrency());
+    }
+
+    @Test
+    void finalStageDoesNotUnlockANonexistentStage() {
+        int lastStage = CampaignStageData.getTotalStages();
+
+        assertEquals(SettlementResult.SUCCESS, Core.finishCampaignStage(gameplay, lastStage, true));
+
+        assertEquals(lastStage, CampaignManager.getMaxCampaignStage());
+        assertEquals(1000, assets.getBalance());
+    }
+
+    private void setCampaignStage(int stage) throws Exception {
+        Field highestStage = CampaignManager.class.getDeclaredField("maxCampaignStage");
+        highestStage.setAccessible(true);
+        highestStage.setInt(null, stage);
     }
 
     private Map<String, ConsumableActivation> adapters() {

@@ -182,11 +182,11 @@ public final class Core {
 
 							boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
 							gameState = ((GameScreen) currentScreen).getGameState();
-							if (frame.isCloseRequested()) {
-								gameplayAssets.settleStage();
+							SettlementResult settlement = finishCampaignStage(gameplayAssets,
+									gameState.getLevel(), stageCleared);
+							if (frame.isCloseRequested())
 								break;
-							}
-							if (!settleStageWithRetry())
+							if (!settleStageWithRetry(settlement))
 								break;
 
 							if (!stageCleared) {
@@ -194,11 +194,6 @@ public final class Core {
 										+ " failed. Not advancing.");
 								break;
 							}
-
-							CampaignManager.updateMaxCampaignStage(
-									Math.min(gameState.getLevel() + 1,
-											CampaignStageData.getTotalStages()));
-							LOGGER.info("Highest Stage is: " + CampaignManager.getMaxCampaignStage());
 
 							gameState = new GameState(gameState.getLevel() + 1,
 									gameState.getScore(),
@@ -404,8 +399,18 @@ public final class Core {
 		return true;
 	}
 
-	private static boolean settleStageWithRetry() {
-		SettlementResult result = gameplayAssets.settleStage();
+	/** A cleared stage stays unlocked even if its currency cannot be transferred or saved. */
+	static SettlementResult finishCampaignStage(final GameplayAssets assets,
+			final int level, final boolean stageCleared) {
+		if (stageCleared) {
+			CampaignManager.updateMaxCampaignStage(
+					Math.min(level + 1, CampaignStageData.getTotalStages()));
+			LOGGER.info("Highest Stage is: " + CampaignManager.getMaxCampaignStage());
+		}
+		return assets.settleStage();
+	}
+
+	private static boolean settleStageWithRetry(SettlementResult result) {
 		if (result == SettlementResult.SETTLEMENT_FAILED) {
 			JOptionPane.showMessageDialog(frame,
 					"Earned credits could not be added to your balance.\n"
