@@ -14,9 +14,9 @@ repositories {
 }
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
+    // Use Gradle's JDK for compilation and execution, targeting Java 17.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 jacoco {
@@ -126,13 +126,10 @@ def smokeTasks = smokeTestClasses.collect { className ->
         coveragePlugin.applyTo(smokeTask)
         def coverage = extensions.getByType(JacocoTaskExtension)
         group = 'verification'
-        description = "Runs ${className} with Java 17 and assertions enabled."
+        description = "Runs ${className} with assertions enabled."
         dependsOn tasks.named('testClasses')
         classpath = sourceSets.test.runtimeClasspath
         mainClass = className
-        javaLauncher = javaToolchains.launcherFor {
-            languageVersion = JavaLanguageVersion.of(17)
-        }
         enableAssertions = true
         systemProperty 'java.awt.headless', 'true'
         systemProperty 'file.encoding', 'UTF-8'

@@ -1,6 +1,6 @@
 # Building and testing
 
-Install **JDK 17** and make it available through `JAVA_HOME` or `PATH`. The build targets Java 17 and uses the included **Gradle 9.8.2 Wrapper**. Gradle, JUnit, JaCoCo, and Spotless are downloaded automatically; the first build needs internet access. No separate Gradle installation or IDE plugin is required.
+Use **JDK 17, 21, or 25**, available through `JAVA_HOME` or `PATH`. Compilation, tests, and game launch use the JDK running Gradle; a separate JDK 17 installation is not required. The build targets Java 17 with `--release 17` and uses the included **Gradle 9.8.2 Wrapper**. Gradle, JUnit, JaCoCo, and Spotless are downloaded automatically; the first build needs internet access. No separate Gradle installation or IDE plugin is required.
 
 ## Build and run
 
@@ -23,7 +23,7 @@ sh ./gradlew run
 ## IntelliJ IDEA
 
 1. Open the repository folder containing `settings.gradle` as a Gradle project.
-2. Set **Project SDK** and **Gradle JVM** to JDK 17. In **Settings → Build, Execution, Deployment → Build Tools → Gradle**, use the **Wrapper** and select **Gradle** for building and running tests.
+2. Set **Project SDK** and **Gradle JVM** to the same JDK (17, 21, or 25), keeping the project language level at **17**. In **Settings → Build, Execution, Deployment → Build Tools → Gradle**, use the **Wrapper** and select **Gradle** for building and running tests.
 3. Reload the Gradle project, then select **Invaders - Run** from the run configuration menu. The shared configurations in `.run/` use the same tasks as the command line.
 
 Gradle configures `src/`, `res/`, and `test/`; manual source-root or classpath setup is unnecessary. If the shared configurations are not visible yet, run the corresponding task from the Gradle tool window after reloading.
@@ -55,6 +55,6 @@ To run one suite, use `test --tests "engine.FileManagerTest"` for JUnit or `smok
 
 ## CI and local files
 
-[GitHub Actions](../.github/workflows/ci.yml) runs `clean build` with JDK 17 on Windows and Linux for pull requests and pushes to `main`. Available test and coverage reports are kept as workflow artifacts for seven days, including on failed builds.
+[GitHub Actions](../.github/workflows/ci.yml) runs `clean build` with JDK 17 on Windows and Linux for pull requests and pushes to `main`. These two jobs verify the minimum supported Java version; JDK 21 and 25 are checked separately when changing JDK support or build tooling. Available test and coverage reports are kept as workflow artifacts for seven days, including on failed builds.
 
 `clean` removes generated files under `build/`. Gradle `run` keeps local scores and player assets in the repository root; records and achievements use the existing `.space-invaders/` directory under the user's home. Build output, local saves, and personal IDE settings are excluded from Git.
