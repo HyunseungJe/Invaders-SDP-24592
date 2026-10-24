@@ -57,6 +57,10 @@ public final class ShopTestFixtures {
         return new ShopController(assets, save.files, products, save);
     }
 
+    public static ShopController upgradeController(PlayerAssets assets, SaveFile save) {
+        return controller(assets, save, ShopProducts.availableProducts());
+    }
+
     /** Only for the startup test's isolated JVM. */
     public static ShopController controllerUsingDefaultSave(PlayerAssets assets, FileManager files) {
         return new ShopController(assets, files, products());

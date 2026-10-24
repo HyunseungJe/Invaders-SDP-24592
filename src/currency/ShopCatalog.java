@@ -33,6 +33,7 @@ public class ShopCatalog {
     private static class Product {
         final int price;
         final Category category;
+        final String requiredUnlockId;
 
         /**
          * Creates a product entry with the specified price and category.
@@ -40,9 +41,10 @@ public class ShopCatalog {
          * @param price the product's price
          * @param category the type of product
          */
-        Product(int price, Category category) {
+        Product(int price, Category category, String requiredUnlockId) {
             this.price = price;
             this.category = category;
+            this.requiredUnlockId = requiredUnlockId;
         }
     }
 
@@ -76,7 +78,7 @@ public class ShopCatalog {
      * @return true if registration succeeds; otherwise, false
      */
     public boolean registerInventoryItem(String itemId, int price) {
-        return register(itemId, price, Category.INVENTORY);
+        return register(itemId, price, Category.INVENTORY, null);
     }
 
     /**
@@ -87,7 +89,18 @@ public class ShopCatalog {
      * @return true if registration succeeds; otherwise, false
      */
     public boolean registerUnlockable(String itemId, int price) {
-        return register(itemId, price, Category.UNLOCKABLE);
+        return registerUnlockable(itemId, price, null);
+    }
+
+    /** Register prerequisites first, which also prevents cycles in upgrade chains. */
+    public boolean registerUnlockable(String itemId, int price, String requiredUnlockId) {
+        if (requiredUnlockId != null && !isUnlockable(requiredUnlockId)) return false;
+        return register(itemId, price, Category.UNLOCKABLE, requiredUnlockId);
+    }
+
+    public String getRequiredUnlockId(String itemId) {
+        Product product = catalog.get(itemId);
+        return product == null ? null : product.requiredUnlockId;
     }
 
     /**
@@ -98,7 +111,7 @@ public class ShopCatalog {
      * @param category the product category
      * @return true if registered; otherwise, false
      */
-    private boolean register(String itemId, int price, Category category) {
+    private boolean register(String itemId, int price, Category category, String requiredUnlockId) {
         // Reject zero or negative prices
         if (price <= 0 || isInvalidId(itemId)) {
             return false;
@@ -109,7 +122,7 @@ public class ShopCatalog {
             return false;
         }
 
-        catalog.put(itemId, new Product(price, category));
+        catalog.put(itemId, new Product(price, category, requiredUnlockId));
         return true;
     }
 

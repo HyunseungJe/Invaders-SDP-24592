@@ -9,6 +9,7 @@ public final class ShopProduct {
     private final Category category;
     private final int price;
     private final String description;
+    private final String requiredUnlockId;
 
     public ShopProduct(String id, String name, Category category, int price) {
         this(id, name, category, price,
@@ -17,6 +18,15 @@ public final class ShopProduct {
 
     public ShopProduct(String id, String name, Category category, int price,
             String description) {
+        this(id, name, category, price, description, null);
+    }
+
+    public ShopProduct(String id, String name, Category category, int price,
+            String description, String requiredUnlockId) {
+        if (requiredUnlockId != null && (requiredUnlockId.trim().isEmpty()
+                || category != Category.UNLOCKABLE || requiredUnlockId.equals(id))) {
+            throw new IllegalArgumentException("Only unlocks may require a different unlock.");
+        }
         if (id == null || id.trim().isEmpty() || name == null
                 || name.trim().isEmpty() || category == null || price <= 0
                 || description == null || description.trim().isEmpty()) {
@@ -27,6 +37,7 @@ public final class ShopProduct {
         this.category = category;
         this.price = price;
         this.description = description;
+        this.requiredUnlockId = requiredUnlockId;
     }
 
     public String getId() {
@@ -47,5 +58,9 @@ public final class ShopProduct {
 
     public String getDescription() {
         return description;
+    }
+
+    public String getRequiredUnlockId() {
+        return requiredUnlockId;
     }
 }

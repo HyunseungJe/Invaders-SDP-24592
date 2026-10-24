@@ -102,6 +102,11 @@ public class PurchaseSystem {
             return PurchaseResult.ALREADY_UNLOCKED;
         }
 
+        for (String required = catalog.getRequiredUnlockId(itemId); required != null;
+                required = catalog.getRequiredUnlockId(required)) {
+            if (!assets.isUnlocked(required)) return PurchaseResult.ITEM_NOT_AVAILABLE;
+        }
+
         int price = catalog.getPrice(itemId);
 
         if (!assets.deductCurrency(price)) {

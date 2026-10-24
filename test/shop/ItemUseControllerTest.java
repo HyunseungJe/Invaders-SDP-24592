@@ -405,11 +405,11 @@ class ItemUseControllerTest {
     }
 
     @Test
-    void emptyProductionCatalogDoesNotEnableTestProducts() {
+    void productionUpgradeCatalogDoesNotEnableTestConsumables() {
         stock(1);
         ShopController production = new ShopController(assets, files);
         ItemUseController productionUses = production.createItemUseController(Collections.singletonMap(ITEM, activation));
-        assertTrue(production.getProducts().isEmpty());
+        assertEquals(3, production.getProducts().size());
         assertEquals(ItemUseResult.UNSUPPORTED_ITEM, productionUses.tryUse(ITEM));
         assertEquals(1, assets.getItemQuantity(ITEM));
         assertEquals(0, activation.calls);

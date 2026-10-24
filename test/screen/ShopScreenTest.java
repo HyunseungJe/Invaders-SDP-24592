@@ -166,7 +166,8 @@ class ShopScreenTest {
 
     @Test
     void emptyCatalogRemainsNavigableWithoutPurchaseOrSave() {
-        ShopController empty = new ShopController(assets, files);
+        ShopController empty = ShopTestFixtures.controller(assets, saveFile,
+                java.util.Collections.<shop.ShopProduct>emptyList());
         screen = new ShopScreen(448, 520, 60, empty);
         screen.initialize();
         screen.isRunning = true;

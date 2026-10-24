@@ -79,21 +79,22 @@ public final class ShopController {
             }
             boolean registered = product.getCategory() == Category.INVENTORY
                     ? catalog.registerInventoryItem(product.getId(), product.getPrice())
-                    : catalog.registerUnlockable(product.getId(), product.getPrice());
+                    : catalog.registerUnlockable(product.getId(), product.getPrice(),
+                            product.getRequiredUnlockId());
             if (!registered) {
                 throw new IllegalArgumentException("Duplicate or invalid product: " + product.getId());
             }
             // Display the price registered for purchases.
             listed.add(new ShopProduct(product.getId(), product.getName(),
                     product.getCategory(), catalog.getPrice(product.getId()),
-                    product.getDescription()));
+                    product.getDescription(), product.getRequiredUnlockId()));
         }
         this.products = Collections.unmodifiableList(listed);
         this.purchases = new PurchaseSystem(assets, catalog);
     }
 
-    public List<ShopProduct> getProducts() {
-        return products;
+    public synchronized List<ShopProduct> getProducts() {
+        return ShopProducts.visibleProducts(products, assets.snapshot());
     }
 
     public synchronized PlayerAssetsState snapshot() {

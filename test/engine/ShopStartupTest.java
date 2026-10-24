@@ -48,7 +48,7 @@ class ShopStartupTest {
         assertEquals(0, controller.snapshot().getBalance());
         assertTrue(controller.snapshot().getUnlockedContentIds().isEmpty());
         assertTrue(controller.snapshot().getItemQuantities().isEmpty());
-        assertTrue(controller.getProducts().isEmpty());
+        assertEquals(3, controller.getProducts().size());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, controller.getSaveStatus());
         assertFalse(Files.exists(save));
     }

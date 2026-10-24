@@ -37,14 +37,14 @@ class ShopControllerTest {
     }
 
     @Test
-    void constructorKeepsAssetsAndSaveFileWithEmptyProductionCatalog() throws Exception {
+    void constructorKeepsAssetsAndSaveFileWithProductionUpgrades() throws Exception {
         Files.write(save, new byte[] { 1, 2, 3 });
         byte[] before = Files.readAllBytes(save);
 
         ShopController production = new ShopController(assets, files);
 
         assertEquals(1000, production.snapshot().getBalance());
-        assertTrue(production.getProducts().isEmpty());
+        assertEquals(3, production.getProducts().size());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, production.getSaveStatus());
         assertArrayEquals(before, Files.readAllBytes(save));
     }

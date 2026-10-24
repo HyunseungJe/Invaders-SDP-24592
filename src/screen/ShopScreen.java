@@ -37,11 +37,19 @@ public class ShopScreen extends Screen {
     public ShopScreen(int width, int height, int fps, ShopController controller) {
         super(validateArguments(width, height, fps, controller), height, fps);
         this.controller = controller;
+        refreshProducts();
+        this.returnCode = RETURN_TO_MAIN_MENU;
+    }
+
+    private void refreshProducts() {
+        items.clear();
+        unlocks.clear();
         for (ShopProduct product : controller.getProducts()) {
             if (product.getCategory() == Category.INVENTORY) items.add(product);
             else unlocks.add(product);
         }
-        this.returnCode = RETURN_TO_MAIN_MENU;
+        itemIndex = Math.max(0, Math.min(itemIndex, items.size() - 1));
+        unlockIndex = Math.max(0, Math.min(unlockIndex, unlocks.size() - 1));
     }
 
     private static int validateArguments(int width, int height, int fps, ShopController controller) {
@@ -53,6 +61,7 @@ public class ShopScreen extends Screen {
 
     @Override
     public void initialize() {
+        refreshProducts();
         assets = controller.snapshot();
         selectedSection = !items.isEmpty() ? 0 : !unlocks.isEmpty() ? 1 : 2;
         itemIndex = 0;
@@ -152,6 +161,7 @@ public class ShopScreen extends Screen {
             lastResult = controller.purchase(product.getId());
         }
         assets = controller.snapshot();
+        refreshProducts();
         AudioManager.playSFX("audio/sfx/menu_select.wav");
     }
 
