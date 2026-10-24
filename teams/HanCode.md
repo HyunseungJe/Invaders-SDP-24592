@@ -47,7 +47,7 @@ Currency System. Our team is responsible for managing the in-game currency econo
    Provide purchase-related operations that allow purchasable content to be acquired using in-game currency. Validate the player's available balance and the requested price before completing a purchase. A successful purchase must deduct the required currency, while a failed or rejected purchase must leave the player's balance and ownership state unchanged. HanCode also provides the Shop screen and purchase/save feedback, including a save retry that does not repeat the purchase.
 
 5. Ownership Management  
-   Track the ownership or unlock status of content acquired through purchases, such as items, upgrades, BGM, stages, or other future purchasable content. Provide an interface that allows other systems to determine whether specific content has been purchased or unlocked. Ownership and unlock states must persist across game sessions. For purchased consumables, provide a separate use service that consumes one unit on successful activation without charging currency again. Ordinary rejected uses leave stock unchanged.
+   Track the ownership or unlock status of content acquired through purchases, such as items, upgrades, BGM, stages, or other future purchasable content. Provide an interface that allows other systems to determine whether specific content has been purchased or unlocked. Ownership and unlock states must persist across game sessions.
 
 ---
 
@@ -57,7 +57,7 @@ Currency System. Our team is responsible for managing the in-game currency econo
    We depend on this team to trigger and broadcast a 'Level Completed' event containing the level ID and the difficulty data required to calculate and award the appropriate end-of-level currency reward.
 
 2. Item System:  
-   Coordinate purchasable item identifiers and prices with the Item System, which provides effect behavior and a supported activation interface. HanCode provides purchase and consumable-use operations and manages owned quantities. Effect application, timers, and field pickups remain with the Item System.
+   HanCode provides permanent Campaign stat upgrades. Coordinate baseline-stat restoration after temporary effects; effect application, timers, and field pickups remain with the Item System.
 
 3. Player & Enemy Ship Variety:  
    We depend on this team to broadcast an 'Enemy Defeated' event containing the enemy information required to determine the appropriate drop rate and reward amount.
@@ -68,8 +68,8 @@ Currency System. Our team is responsible for managing the in-game currency econo
 
 | Area | Implemented components | Remaining integration |
 | --- | --- | --- |
-| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Frenchies connects the supplied screen to its existing Main Menu Shop entry and coordinates the return path. |
-| Consumable use | [ItemUseService](../src/currency/ItemUseService.java) uses registered effect adapters through [ConsumableActivation](../src/currency/ConsumableActivation.java). Ordinary rejection restores reserved stock; unexpected adapter failures block the service until the state is reconciled and the service is replaced. | Connect actual effects and gameplay input. Agree on repeat-use rules and saving after consumption with the relevant teams. |
-| Rewards | [RewardSystem](../src/currency/RewardSystem.java) accumulates rewards and settles them into the shared assets. | Coordinate settlement, saving, and failure recovery, then connect gameplay events and stage exit handling. |
+| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), Main Menu entry and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Agree on ship products and prices for the existing lower Unlocks row. |
+| Permanent upgrades | [Hull, Engine and Reloader](../docs/Permanent-Upgrades.md) replace the upper consumable-item row. Three purchase levels persist and apply to subsequent Campaign runs. | Review provisional prices and bonuses. |
+| Rewards | [CampaignRewards](../src/engine/CampaignRewards.java) connects Campaign clears to [RewardSystem](../src/currency/RewardSystem.java), shared assets, saving and retry handling. | Coordinate and connect enemy-type rewards. |
 
-The production Shop catalog remains empty until product IDs and prices are agreed with the content teams. Sample products are used only in tests and the preview. These components do not yet constitute a complete gameplay purchase/use/reward flow.
+The production catalog contains the three permanent stat upgrades. Existing lower-row unlock samples remain in tests and previews; ship access rules are unchanged. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.
