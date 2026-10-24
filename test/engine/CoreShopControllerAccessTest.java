@@ -16,6 +16,7 @@ class CoreShopControllerAccessTest {
         try {
             field.set(null, null);
             assertThrows(IllegalStateException.class, Core::getShopController);
+            assertThrows(IllegalStateException.class, Core::getAssetHudSnapshot);
             assertNull(field.get(null));
         } finally {
             field.set(null, previous);

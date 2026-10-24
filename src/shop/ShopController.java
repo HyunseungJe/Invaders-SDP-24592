@@ -59,6 +59,11 @@ public final class ShopController {
         return ShopProducts.visibleProducts(products, assets.snapshot());
     }
 
+    /** Current spendable Credits, without copying ownership or legacy save data. */
+    public synchronized int getBalance() {
+        return assets.getBalance();
+    }
+
     public synchronized PlayerAssetsState snapshot() {
         return assets.snapshot();
     }

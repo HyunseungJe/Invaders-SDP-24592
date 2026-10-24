@@ -18,6 +18,7 @@ import screen.GameModeScreen;
 
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
+import hud.AssetHudSnapshot;
 import java.util.UUID;
 import records.RunSession;
 import records.RunRecord;
@@ -514,6 +515,16 @@ public final class Core {
 			throw new IllegalStateException("Player assets have not been initialized.");
 		}
 		return shopController;
+	}
+
+	/**
+	 * Returns a read-only balance snapshot on the gameplay thread after startup.
+	 * Reads the existing session without loading, saving or settling rewards.
+	 *
+	 * @throws IllegalStateException if startup has not initialized the shop controller
+	 */
+	public static AssetHudSnapshot getAssetHudSnapshot() {
+		return new AssetHudSnapshot(getShopController().getBalance());
 	}
 
 	/**
