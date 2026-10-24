@@ -13,7 +13,7 @@ import java.util.List;
 
 /** Sample products and balances used only by tests. */
 public final class ShopTestFixtures {
-    public static final String CONSUMABLE = "TEST_CONSUMABLE";
+    public static final String UPGRADE = "TEST_UPGRADE";
     public static final String UNLOCK = "TEST_PERMANENT";
 
     private ShopTestFixtures() {
@@ -28,19 +28,17 @@ public final class ShopTestFixtures {
 
     public static List<ShopProduct> products() {
         return Arrays.asList(
-                new ShopProduct(CONSUMABLE, "Item A", Category.INVENTORY, 100,
-                        "Sample inventory item."),
+                new ShopProduct(UPGRADE, "Upgrade A", Category.UPGRADE, 100,
+                        "Sample permanent upgrade."),
                 new ShopProduct(UNLOCK, "Unlock A", Category.UNLOCKABLE, 500,
                         "Sample permanent unlock."));
     }
 
-    /** More sample cards for browsing; these do not implement gameplay effects. */
+    /** Production upgrades above the existing preview-only unlock cards. */
     public static List<ShopProduct> previewProducts() {
-        List<ShopProduct> products = new ArrayList<ShopProduct>(products());
-        products.add(new ShopProduct("TEST_ITEM_B", "Item B", Category.INVENTORY, 150,
-                "Sample inventory item."));
-        products.add(new ShopProduct("TEST_ITEM_C", "Item C", Category.INVENTORY, 200,
-                "Sample inventory item."));
+        List<ShopProduct> products = new ArrayList<ShopProduct>(ShopProducts.availableProducts());
+        products.removeIf(product -> product.getCategory() == Category.UNLOCKABLE);
+        products.add(products().get(1));
         products.add(new ShopProduct("TEST_SHIP_B", "Ship B", Category.UNLOCKABLE, 650,
                 "Sample ship unlock."));
         products.add(new ShopProduct("TEST_SHIP_C", "Ship C", Category.UNLOCKABLE, 800,
@@ -55,6 +53,10 @@ public final class ShopTestFixtures {
     public static ShopController controller(PlayerAssets assets, SaveFile save,
             List<ShopProduct> products) {
         return new ShopController(assets, save.files, products, save);
+    }
+
+    public static ShopController upgradeController(PlayerAssets assets, SaveFile save) {
+        return controller(assets, save, ShopProducts.availableProducts());
     }
 
     /** Only for the startup test's isolated JVM. */

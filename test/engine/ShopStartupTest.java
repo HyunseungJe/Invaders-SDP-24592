@@ -1,11 +1,8 @@
 package engine;
 
-import currency.ConsumableActivation;
-import currency.ItemUseResult;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
-import currency.RewardSystem;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +19,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import shop.ShopController;
-import shop.ItemUseController;
 import shop.ShopTestFixtures;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -48,7 +44,7 @@ class ShopStartupTest {
         assertEquals(0, controller.snapshot().getBalance());
         assertTrue(controller.snapshot().getUnlockedContentIds().isEmpty());
         assertTrue(controller.snapshot().getItemQuantities().isEmpty());
-        assertTrue(controller.getProducts().isEmpty());
+        assertEquals(6, controller.getProducts().size());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, controller.getSaveStatus());
         assertFalse(Files.exists(save));
     }
@@ -61,7 +57,7 @@ class ShopStartupTest {
         }
         PlayerAssetsState persisted = new PlayerAssetsState(700,
                 Collections.singleton(ShopTestFixtures.UNLOCK),
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 2));
+                Collections.singletonMap("legacy.item", 2));
         files.savePlayerAssets(persisted, save);
         byte[] saved = Files.readAllBytes(save);
         PlayerAssets shared = new PlayerAssets();
@@ -70,7 +66,7 @@ class ShopStartupTest {
 
         assertEquals(700, shared.getBalance());
         assertTrue(shared.isUnlocked(ShopTestFixtures.UNLOCK));
-        assertEquals(2, shared.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertEquals(2, shared.snapshot().getItemQuantities().get("legacy.item"));
         assertEquals(persisted.getBalance(), controller.snapshot().getBalance());
         assertEquals(persisted.getUnlockedContentIds(), controller.snapshot().getUnlockedContentIds());
         assertEquals(persisted.getItemQuantities(), controller.snapshot().getItemQuantities());
@@ -91,7 +87,7 @@ class ShopStartupTest {
         PlayerAssets shared = new PlayerAssets();
         PlayerAssetsState before = new PlayerAssetsState(1000,
                 Collections.singleton(ShopTestFixtures.UNLOCK),
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 3));
+                Collections.singletonMap("legacy.item", 3));
         shared.restore(before);
         byte[] corrupt = "version=999\nbalance=0\n".getBytes(StandardCharsets.UTF_8);
         Files.write(save, corrupt);
@@ -105,7 +101,7 @@ class ShopStartupTest {
 
         PlayerAssetsState recovered = new PlayerAssetsState(650,
                 Collections.singleton(ShopTestFixtures.UNLOCK),
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 1));
+                Collections.singletonMap("legacy.item", 1));
         files.savePlayerAssets(recovered, save);
         byte[] repairedSave = Files.readAllBytes(save);
 
@@ -113,7 +109,7 @@ class ShopStartupTest {
 
         assertEquals(650, shared.getBalance());
         assertTrue(shared.isUnlocked(ShopTestFixtures.UNLOCK));
-        assertEquals(1, shared.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertEquals(1, shared.snapshot().getItemQuantities().get("legacy.item"));
         assertEquals(650, controller.snapshot().getBalance());
         assertArrayEquals(repairedSave, Files.readAllBytes(save));
     }
@@ -127,9 +123,9 @@ class ShopStartupTest {
         PlayerAssets shared = ShopTestFixtures.fundedAssets();
         ShopController controller = ShopTestFixtures.controllerUsingDefaultSave(shared, files);
 
-        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.CONSUMABLE));
+        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.UPGRADE));
         assertEquals(900, files.loadPlayerAssets().getBalance());
-        assertEquals(1, files.loadPlayerAssets().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        assertTrue(files.loadPlayerAssets().getUnlockedContentIds().contains(ShopTestFixtures.UPGRADE));
         assertEquals(ShopController.SaveStatus.SAVED, controller.getSaveStatus());
 
         assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.UNLOCK));
@@ -139,103 +135,33 @@ class ShopStartupTest {
         PlayerAssets restored = new PlayerAssets();
         ShopController reopened = Core.initializeShop(restored, files);
         assertEquals(400, reopened.snapshot().getBalance());
-        assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertTrue(restored.isUnlocked(ShopTestFixtures.UPGRADE));
         assertTrue(restored.isUnlocked(ShopTestFixtures.UNLOCK));
     }
 
-    @Test
-    void successfulConsumptionUsesDefaultSaveAndRestoresOnStartup() throws Exception {
-        if (!isolatedProcess) {
-            runIsolated("consumption");
-            return;
-        }
-        PlayerAssets shared = ShopTestFixtures.fundedAssets();
-        ShopController controller = new ShopController(shared, files, ShopTestFixtures.products());
-        final int[] activations = { 0 };
-        ConsumableActivation effect = new ConsumableActivation() {
-            @Override
-            public ItemUseResult validate() {
-                return ItemUseResult.SUCCESS;
-            }
 
-            @Override
-            public ItemUseResult activate() {
-                activations[0]++;
-                return ItemUseResult.SUCCESS;
-            }
-        };
-        ItemUseController uses = controller.createItemUseController(
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, effect));
-        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.CONSUMABLE));
-        assertEquals(PurchaseResult.SUCCESS, controller.purchase(ShopTestFixtures.CONSUMABLE));
-        assertEquals(ItemUseResult.SUCCESS, uses.tryUse(ShopTestFixtures.CONSUMABLE));
-        assertEquals(ShopController.SaveStatus.SAVED, uses.getSaveStatus());
-        assertEquals(800, files.loadPlayerAssets().getBalance());
-        assertEquals(1, files.loadPlayerAssets().getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
-        assertTrue(uses.retrySave());
-        assertEquals(1, activations[0]);
-
-        PlayerAssets restored = new PlayerAssets();
-        ShopController reopened = Core.initializeShop(restored, files);
-        assertEquals(800, reopened.snapshot().getBalance());
-        assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
-    }
 
     @Test
-    void consumptionSaveRetryIncludesSettledRewardsAndKeepsNewRewardsPending() throws Exception {
+    void campaignRewardsUseTheShopsDefaultSaveAndSurviveReload() throws Exception {
         if (!isolatedProcess) {
-            runIsolated("consumption-reward-retry");
+            runIsolated("campaign-reward");
             return;
         }
         PlayerAssets shared = new PlayerAssets();
-        assertTrue(shared.restore(new PlayerAssetsState(1000, Collections.<String>emptySet(),
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, 2))));
-        ShopController controller = new ShopController(shared, files, ShopTestFixtures.products());
-        RewardSystem rewards = new RewardSystem(shared);
-        RewardSettlementCoordinator settlement = new RewardSettlementCoordinator(rewards, shared, files);
-        final int[] activations = { 0 };
-        ConsumableActivation effect = new ConsumableActivation() {
-            @Override
-            public ItemUseResult validate() {
-                return ItemUseResult.SUCCESS;
-            }
-
-            @Override
-            public ItemUseResult activate() {
-                activations[0]++;
-                return ItemUseResult.SUCCESS;
-            }
-        };
-        ItemUseController uses = controller.createItemUseController(
-                Collections.singletonMap(ShopTestFixtures.CONSUMABLE, effect));
-
-        Files.createDirectory(save);
-        Path blocker = Files.createFile(save.resolve("blocker"));
-        assertEquals(ItemUseResult.SUCCESS, uses.tryUse(ShopTestFixtures.CONSUMABLE));
-        assertEquals(1, shared.getItemQuantity(ShopTestFixtures.CONSUMABLE));
-        assertEquals(ShopController.SaveStatus.FAILED, uses.getSaveStatus());
-        assertFalse(uses.retrySave());
-        Files.delete(blocker);
-        Files.delete(save);
-
-        assertTrue(rewards.rewardEnemy("TANK"));
-        assertEquals(SettlementResult.SUCCESS, settlement.processSettlement());
-        assertEquals(ShopController.SaveStatus.FAILED, uses.getSaveStatus());
-        assertTrue(rewards.rewardEnemy("BASIC"));
-        assertTrue(uses.retrySave());
-        assertTrue(uses.retrySave());
-
-        assertEquals(ShopController.SaveStatus.SAVED, uses.getSaveStatus());
-        assertEquals(1050, shared.getBalance());
-        assertEquals(10, rewards.getPendingCurrency());
-        assertEquals(1, activations[0]);
-        PlayerAssetsState persisted = files.loadPlayerAssets();
-        assertEquals(1050, persisted.getBalance());
-        assertEquals(1, persisted.getItemQuantities().get(ShopTestFixtures.CONSUMABLE));
+        ShopController shop = Core.initializeShop(shared, files);
+        CampaignRewards rewards = new CampaignRewards(shared, files);
+        event.GameplayEventPublisher events = new event.GameplayEventPublisher();
+        try (CampaignRewards.StageSubscription subscription = rewards.subscribe(events, 1)) {
+            events.publish(new event.LevelCompletedEvent(1, GameplayConfig.NORMAL));
+        }
+        assertEquals(100, shop.snapshot().getBalance());
+        assertEquals(100, files.loadPlayerAssets().getBalance());
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase("upgrade.hull.1"));
         PlayerAssets restored = new PlayerAssets();
-        ShopController reopened = Core.initializeShop(restored, files);
-        assertEquals(1050, reopened.snapshot().getBalance());
-        assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        Core.initializeShop(restored, files);
+        assertEquals(0, restored.getBalance());
+        assertTrue(restored.isUnlocked("upgrade.hull.1"));
+        assertTrue(Files.isRegularFile(save));
     }
 
     private void runIsolated(String scenario) throws Exception {
@@ -321,11 +247,8 @@ class ShopStartupTest {
         case "purchase":
             test.purchasesUseDefaultSaveAndRestoreOnStartup();
             break;
-        case "consumption":
-            test.successfulConsumptionUsesDefaultSaveAndRestoresOnStartup();
-            break;
-        case "consumption-reward-retry":
-            test.consumptionSaveRetryIncludesSettledRewardsAndKeepsNewRewardsPending();
+        case "campaign-reward":
+            test.campaignRewardsUseTheShopsDefaultSaveAndSurviveReload();
             break;
         default:
             throw new IllegalArgumentException("Unknown storage test: " + args[1]);

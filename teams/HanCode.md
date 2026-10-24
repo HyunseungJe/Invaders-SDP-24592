@@ -8,7 +8,7 @@ Course: CSE2024 Software Development Practices
 
 ### Goals and Vision:
 
-Our goal is to develop a robust, bug-free, and scalable currency system that feels rewarding, enhances the player's progression and seamlessly integrates with other gameplay mechanics. The system should integrate smoothly with other gameplay systems such as the HUD, item system, and enemy variety system.
+Our goal is to provide shared currency balances, gameplay rewards, purchases and persistent ownership, with integration for the HUD, Level Design, and Player & Enemy Ship Variety systems.
 
 ### Members:
 
@@ -38,7 +38,7 @@ Currency System. Our team is responsible for managing the in-game currency econo
    Manage the player's in-game currency balance independently from the player's score. Support balance queries, additions, and deductions while preventing negative balances, overspending, and invalid balance updates. Rejected operations must leave the balance unchanged.
 
 2. Reward System  
-   Define and apply currency reward amounts and drop rates for gameplay events such as enemy defeats and level completion. Level-completion events and difficulty data will be provided by the Level Design System, while enemy-defeat information will be provided by the Player & Enemy Ship Variety System.
+   Define and apply currency reward amounts and drop rates for gameplay events such as enemy defeats and level completion. Use level-completion events and difficulty data from the Level Design System, and agreed enemy-defeat data from the Player & Enemy Ship Variety System.
 
 3. Persistence  
    Save and load the player's currency-related state between game sessions. Validate loaded data before applying it, report persistence failures, and ensure that invalid data does not overwrite valid runtime or saved state.
@@ -47,20 +47,20 @@ Currency System. Our team is responsible for managing the in-game currency econo
    Provide purchase-related operations that allow purchasable content to be acquired using in-game currency. Validate the player's available balance and the requested price before completing a purchase. A successful purchase must deduct the required currency, while a failed or rejected purchase must leave the player's balance and ownership state unchanged. HanCode also provides the Shop screen and purchase/save feedback, including a save retry that does not repeat the purchase.
 
 5. Ownership Management  
-   Track the ownership or unlock status of content acquired through purchases, such as items, upgrades, BGM, stages, or other future purchasable content. Provide an interface that allows other systems to determine whether specific content has been purchased or unlocked. Ownership and unlock states must persist across game sessions. For purchased consumables, provide a separate use service that consumes one unit on successful activation without charging currency again. Ordinary rejected uses leave stock unchanged.
+   Track purchased permanent upgrades and other agreed unlockable content. Provide an interface that allows other systems to determine whether specific content has been purchased or unlocked. Ownership and unlock states must persist across game sessions.
 
 ---
 
 ## 4. Dependencies on Other Teams
 
-1. Level Design System:  
-   We depend on this team to trigger and broadcast a 'Level Completed' event containing the level ID and the difficulty data required to calculate and award the appropriate end-of-level currency reward.
+1. Level Design System (Octopus):
+   Use the existing `LevelCompletedEvent` with the completed level and difficulty. HanCode awards and saves the clear bonus after the Campaign stage screen finishes.
 
-2. Item System:  
-   Coordinate purchasable item identifiers and prices with the Item System, which provides effect behavior and a supported activation interface. HanCode provides purchase and consumable-use operations and manages owned quantities. Effect application, timers, and field pickups remain with the Item System.
+2. Player & Enemy Ship Variety (KimchiBaguette):
+   Use the existing ship baseline-stat API for permanent Campaign upgrades. Coordinate stable enemy-type data for defeat rewards, and agree on ship prices and access rules before enabling paid unlocks.
 
-3. Player & Enemy Ship Variety:  
-   We depend on this team to broadcast an 'Enemy Defeated' event containing the enemy information required to determine the appropriate drop rate and reward amount.
+3. Gameplay HUD (friends):
+   HanCode provides `Core.getAssetHudSnapshot().getCredits()` for the balance plus pending rewards from finished stage screens. The current stage's clear bonus is excluded while its screen is active. The HUD team handles display and layout.
 
 ---
 
@@ -68,8 +68,9 @@ Currency System. Our team is responsible for managing the in-game currency econo
 
 | Area | Implemented components | Remaining integration |
 | --- | --- | --- |
-| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Frenchies connects the supplied screen to its existing Main Menu Shop entry and coordinates the return path. |
-| Consumable use | [ItemUseService](../src/currency/ItemUseService.java) uses registered effect adapters through [ConsumableActivation](../src/currency/ConsumableActivation.java). Ordinary rejection restores reserved stock; unexpected adapter failures block the service until the state is reconciled and the service is replaced. | Connect actual effects and gameplay input. Agree on repeat-use rules and saving after consumption with the relevant teams. |
-| Rewards | [RewardSystem](../src/currency/RewardSystem.java) accumulates rewards and settles them into the shared assets. | Coordinate settlement, saving, and failure recovery, then connect gameplay events and stage exit handling. |
+| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), Main Menu entry and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Agree on ship prices and access rules before enabling paid unlocks. |
+| Permanent upgrades | HanCode implements [Hull, Engine and Reloader](../docs/Permanent-Upgrades.md) in the upper Shop row. Three purchase levels persist and apply to subsequent Campaign runs. | Review provisional prices and bonuses. |
+| Rewards | [CampaignRewards](../src/engine/CampaignRewards.java) connects Campaign clears to [RewardSystem](../src/currency/RewardSystem.java), shared assets, saving and retry handling. | Coordinate and connect enemy-type rewards. |
+| HUD | [AssetHudSnapshot](../src/hud/AssetHudSnapshot.java) exposes the Credits total without consumable slots. | Connect the Credits display with the HUD team. |
 
-The production Shop catalog remains empty until product IDs and prices are agreed with the content teams. Sample products are used only in tests and the preview. These components do not yet constitute a complete gameplay purchase/use/reward flow.
+The production catalog contains the three permanent stat upgrades and lists all three ships as available without purchase. Default ship availability is not saved as ownership, and Hangar access rules are unchanged. Separate unlock samples remain in tests and previews. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.

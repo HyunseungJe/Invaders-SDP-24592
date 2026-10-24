@@ -1,6 +1,7 @@
 package screen;
 
 import audio.AudioManager;
+import currency.PermanentUpgrade;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
@@ -100,16 +101,17 @@ class ShopScreenTest {
             screen.processInput(true);
         }
         assertEquals(900, assets.getBalance());
-        assertEquals(1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertTrue(assets.isUnlocked(ShopTestFixtures.UPGRADE));
         key(KeyEvent.VK_ENTER, true);
         screen.processInput(true);
         key(KeyEvent.VK_SPACE, false);
         screen.processInput(true);
-        assertEquals(1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertTrue(assets.isUnlocked(ShopTestFixtures.UPGRADE));
         key(KeyEvent.VK_ENTER, false);
         screen.processInput(true);
         tap(KeyEvent.VK_ENTER);
-        assertEquals(2, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertTrue(assets.isUnlocked(ShopTestFixtures.UPGRADE));
+        assertEquals(900, assets.getBalance());
     }
 
     @Test
@@ -159,14 +161,15 @@ class ShopScreenTest {
         tap(KeyEvent.VK_SPACE);
         assertEquals(ShopController.SaveStatus.SAVED, controller.getSaveStatus());
         assertEquals(900, saveFile.load().getBalance());
-        assertEquals(1, assets.getItemQuantity(ShopTestFixtures.CONSUMABLE));
+        assertTrue(assets.isUnlocked(ShopTestFixtures.UPGRADE));
         assertEquals(2, state("selectedSection"));
         assertEquals(0, state("selectedAction")); // Back after retry; never a product.
     }
 
     @Test
     void emptyCatalogRemainsNavigableWithoutPurchaseOrSave() {
-        ShopController empty = new ShopController(assets, files);
+        ShopController empty = ShopTestFixtures.controller(assets, saveFile,
+                java.util.Collections.<shop.ShopProduct>emptyList());
         screen = new ShopScreen(448, 520, 60, empty);
         screen.initialize();
         screen.isRunning = true;
@@ -233,20 +236,56 @@ class ShopScreenTest {
         tap(KeyEvent.VK_RIGHT);
         tap(KeyEvent.VK_D);
         tap(KeyEvent.VK_SPACE);
-        assertEquals(1, assets.getItemQuantity("TEST_ITEM_C"));
-        assertEquals(800, assets.getBalance());
+        assertEquals(1, PermanentUpgrade.RELOADER.getLevel(assets.snapshot()));
+        assertEquals(900, assets.getBalance());
         tap(KeyEvent.VK_DOWN);
         tap(KeyEvent.VK_RIGHT);
         tap(KeyEvent.VK_SPACE);
         assertTrue(assets.isUnlocked("TEST_SHIP_B"));
-        assertEquals(150, assets.getBalance());
+        assertEquals(250, assets.getBalance());
         tap(KeyEvent.VK_UP);
         assertEquals(0, state("selectedSection"));
-        assertEquals(2, state("itemIndex"));
+        assertEquals(2, state("upgradeIndex"));
+        tap(KeyEvent.VK_SPACE);
+        assertEquals(2, PermanentUpgrade.RELOADER.getLevel(assets.snapshot()));
+        assertEquals(0, assets.getBalance());
         tap(KeyEvent.VK_SPACE);
         assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, state("lastResult"));
         tap(KeyEvent.VK_DOWN);
         assertEquals(1, state("unlockIndex"));
+    }
+
+    @Test
+    void previewKeepsUpgradesAboveExistingUnlockCardsAfterReload() throws Exception {
+        controller = ShopTestFixtures.controller(assets, saveFile, ShopTestFixtures.previewProducts());
+        screen = new ShopScreen(448, 520, 60, controller);
+        screen.initialize();
+        assertEquals(0, state("selectedSection"));
+        assertEquals(3, ((java.util.List<?>) state("upgrades")).size());
+        java.util.List<?> lower = (java.util.List<?>) state("unlocks");
+        assertEquals(3, lower.size());
+        assertEquals(ShopTestFixtures.UNLOCK, ((shop.ShopProduct) lower.get(0)).getId());
+        assertEquals("TEST_SHIP_B", ((shop.ShopProduct) lower.get(1)).getId());
+        assertEquals("TEST_SHIP_C", ((shop.ShopProduct) lower.get(2)).getId());
+
+        tap(KeyEvent.VK_SPACE);
+        tap(KeyEvent.VK_DOWN);
+        tap(KeyEvent.VK_RIGHT);
+        tap(KeyEvent.VK_SPACE);
+        PlayerAssets restored = new PlayerAssets();
+        assertTrue(restored.restore(saveFile.load()));
+        controller = ShopTestFixtures.controller(restored, saveFile, ShopTestFixtures.previewProducts());
+        screen = new ShopScreen(448, 520, 60, controller);
+        screen.initialize();
+
+        assertEquals(250, restored.getBalance());
+        assertEquals(1, PermanentUpgrade.HULL.getLevel(restored.snapshot()));
+        assertTrue(restored.isUnlocked("TEST_SHIP_B"));
+        assertFalse(restored.isUnlocked("TEST_SHIP_C"));
+        assertEquals(3, ((java.util.List<?>) state("upgrades")).size());
+        assertEquals(3, ((java.util.List<?>) state("unlocks")).size());
+        assertEquals("upgrade.hull.2", ((shop.ShopProduct)
+                ((java.util.List<?>) state("upgrades")).get(0)).getId());
     }
 
     @Test
@@ -255,11 +294,11 @@ class ShopScreenTest {
         screen = new ShopScreen(448, 520, 60, controller);
         screen.initialize();
         tap(KeyEvent.VK_LEFT);
-        assertEquals(2, state("itemIndex"));
+        assertEquals(2, state("upgradeIndex"));
         assertEquals(0, state("selectedSection"));
         key(KeyEvent.VK_RIGHT, true);
         for (int i = 0; i < 180; i++) screen.processInput(true);
-        assertEquals(0, state("itemIndex"));
+        assertEquals(0, state("upgradeIndex"));
         assertEquals(1000, assets.getBalance());
     }
 

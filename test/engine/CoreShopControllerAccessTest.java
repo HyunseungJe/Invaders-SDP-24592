@@ -13,12 +13,24 @@ class CoreShopControllerAccessTest {
         Field field = Core.class.getDeclaredField("shopController");
         field.setAccessible(true);
         Object previous = field.get(null);
+        Field rewardsField = Core.class.getDeclaredField("campaignRewards");
+        rewardsField.setAccessible(true);
+        Object previousRewards = rewardsField.get(null);
         try {
             field.set(null, null);
+            rewardsField.set(null, null);
             assertThrows(IllegalStateException.class, Core::getShopController);
+            assertThrows(IllegalStateException.class, Core::getAssetHudSnapshot);
             assertNull(field.get(null));
+            ShopController configured = new ShopController(ShopTestFixtures.fundedAssets(),
+                    Core.getFileManager(), ShopTestFixtures.products());
+            field.set(null, configured);
+            assertThrows(IllegalStateException.class, Core::getAssetHudSnapshot);
+            assertNull(rewardsField.get(null));
+            assertSame(configured, field.get(null));
         } finally {
             field.set(null, previous);
+            rewardsField.set(null, previousRewards);
         }
     }
 

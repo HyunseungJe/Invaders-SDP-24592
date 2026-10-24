@@ -1,6 +1,7 @@
 package shop;
 
 import audio.AudioManager;
+import currency.PermanentUpgrade;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
@@ -30,6 +31,10 @@ public final class ShopPreview {
     private ShopPreview() { }
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && "--upgrades".equals(args[0])) {
+            runUpgradePreview();
+            return;
+        }
         boolean smoke = args.length > 0 && "--smoke".equals(args[0]);
         output = Files.createTempDirectory(smoke ? "shop-smoke-" : "shop-preview-");
         System.out.println("Preview files: " + output);
@@ -44,7 +49,7 @@ public final class ShopPreview {
         try {
             PlayerAssets assets = ShopTestFixtures.fundedAssets();
             ShopController controller = ShopTestFixtures.controller(assets, saveFile,
-                    smoke ? ShopTestFixtures.products() : ShopTestFixtures.previewProducts());
+                    ShopTestFixtures.previewProducts());
             if (smoke) {
                 smoke(frame, assets, controller, files, saveFile);
             } else {
@@ -70,6 +75,23 @@ public final class ShopPreview {
         }
     }
 
+    private static void runUpgradePreview() throws Exception {
+        Path directory = java.nio.file.Paths.get(System.getProperty("invaders.storageDir"));
+        Files.createDirectories(directory);
+        Files.createDirectories(java.nio.file.Paths.get(System.getProperty("user.home")));
+        seedUpgradePreview(Core.getFileManager(), directory);
+        System.out.println("Upgrade preview saves: " + directory);
+        System.out.println("Open Shop, purchase upgrades, then start Campaign. Preview credits are granted once.");
+        Core.run(ShopTestFixtures.previewProducts());
+    }
+
+    static void seedUpgradePreview(FileManager files, Path directory) throws IOException {
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        if (!Files.exists(save)) {
+            files.savePlayerAssets(new PlayerAssetsState(3000, null, null), save);
+        }
+    }
+
     private static void smoke(Frame frame, PlayerAssets assets, ShopController shop, FileManager files,
             ShopTestFixtures.SaveFile saveFile)
             throws Exception {
@@ -79,10 +101,10 @@ public final class ShopPreview {
         int escape = KeyEvent.VK_ESCAPE;
         int retry = KeyEvent.VK_R;
         run(frame, shop, new int[] {0, space, space, space, 0, down, 0, space, 0, space, 0, escape},
-                new String[] {"01-products", "02-consumable", null, null, null, null, null,
+                new String[] {"01-products", "02-upgrade", null, null, null, null, null,
                     "03-permanent", null, "04-already-owned", null, null});
         check(assets.getBalance() == 400, "Both purchase paths and held confirmation");
-        check(assets.getItemQuantity(ShopTestFixtures.CONSUMABLE) == 1, "Single consumable grant");
+        check(PermanentUpgrade.HULL.getLevel(assets.snapshot()) == 1, "One upgrade tier");
         check(assets.isUnlocked(ShopTestFixtures.UNLOCK), "Permanent ownership");
         Path save = saveFile.getPath();
         byte[] saved = Files.readAllBytes(save);
@@ -92,7 +114,7 @@ public final class ShopPreview {
         saveFile.setPath(blocker.resolve("assets.properties"));
         run(frame, shop, new int[] {0, space, space, 0, escape},
                 new String[] {null, "05-save-failed", null, null, null});
-        check(assets.getBalance() == 300 && assets.getItemQuantity(ShopTestFixtures.CONSUMABLE) == 2,
+        check(assets.getBalance() == 150 && PermanentUpgrade.HULL.getLevel(assets.snapshot()) == 2,
                 "Failed save retains completed purchase");
         check(Arrays.equals(saved, Files.readAllBytes(save)), "Previous save preserved");
         saveFile.setPath(save);
@@ -100,18 +122,19 @@ public final class ShopPreview {
                 new String[] {"06-reentry-pending", "07-retry-saved", null, null, null});
         check(shop.getSaveStatus() == ShopController.SaveStatus.SAVED, "Retry saves");
         PlayerAssetsState restored = saveFile.load();
-        check(restored.getBalance() == 300
-                && restored.getItemQuantities().get(ShopTestFixtures.CONSUMABLE) == 2
+        check(restored.getBalance() == 150
+                && PermanentUpgrade.HULL.getLevel(restored) == 2
                 && restored.getUnlockedContentIds().contains(ShopTestFixtures.UNLOCK), "Reload both assets");
 
-        run(frame, new ShopController(assets, files), new int[] {0, space}, new String[] {"08-empty", null});
+        run(frame, ShopTestFixtures.controller(assets, saveFile, java.util.Collections.<ShopProduct>emptyList()),
+                new int[] {0, space}, new String[] {"08-empty", null});
         run(frame, ShopTestFixtures.controller(new PlayerAssets(), saveFile),
                 new int[] {0, space, 0, escape}, new String[] {null, "09-insufficient", null, null});
 
         List<ShopProduct> many = new ArrayList<ShopProduct>();
         for (int i = 0; i < 8; i++) {
             many.add(new ShopProduct("TEST_" + i, "Sample product with a very long readable name " + i,
-                    Category.INVENTORY, Integer.MAX_VALUE));
+                    Category.UPGRADE, Integer.MAX_VALUE));
         }
         run(frame, ShopTestFixtures.controller(assets, saveFile, many),
                 new int[] {0, right, 0, right, 0, right, 0, right, 0, escape},
@@ -120,7 +143,7 @@ public final class ShopPreview {
         run(frame, ShopTestFixtures.controller(ShopTestFixtures.fundedAssets(), saveFile,
                         ShopTestFixtures.previewProducts()),
                 new int[] {0, right, 0, down, 0, right, 0, KeyEvent.VK_UP, 0, escape},
-                new String[] {"12-two-shelves", "13-item-card", null, null, null,
+                new String[] {"12-two-shelves", "13-upgrade-card", null, null, null,
                     "14-ship-card", null, "15-remembered-card", null, null});
 
         run(frame, shop, new int[] {0, KeyEvent.VK_UP, 0, space},

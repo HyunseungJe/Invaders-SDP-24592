@@ -80,7 +80,7 @@ public final class PlayerAssetsState {
     }
 
     /**
-     * Returns the item quantities in this snapshot.
+     * Returns legacy item quantities retained for save compatibility.
      *
      * @return an unmodifiable map of item IDs to quantities; never null
      */

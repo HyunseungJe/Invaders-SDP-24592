@@ -68,7 +68,8 @@ public class RewardSettlementCoordinator {
                 fileManager.savePlayerAssets(snapshot);
             }
             return SettlementResult.SUCCESS;
-        } catch (IOException e) {
+        } catch (IOException | SecurityException e) {
+            Core.getLogger().warning("Reward save failed; runtime assets retained: " + e);
             return SettlementResult.SAVE_FAILED;
         }
     }

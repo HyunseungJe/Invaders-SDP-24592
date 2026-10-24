@@ -11,11 +11,8 @@ import java.util.Map;
  *
  * <p>Responsibility split:
  * <ul>
- *   <li>The intended integration is for other teams to publish enemy
- *       defeat and level completion events. HanCode's listeners would
- *       receive these events and forward the relevant information to
- *       RewardSystem for reward calculation. This reward event wiring
- *       has not yet been verified as implemented.</li>
+ *   <li>CampaignRewards receives level completion events and forwards their
+ *       difficulty here. Enemy-type reward integration remains separate.</li>
  *   <li>Rewards are added to a pending amount. The player's balance changes
  *       only when {@link #settle()} succeeds.</li>
  *   <li>This class does not know whether a stage succeeded or failed. The caller
@@ -155,6 +152,11 @@ public class RewardSystem {
      *         Integer.MAX_VALUE
      */
     public boolean rewardLevel(int difficulty) {
+        return accumulateReward(getLevelReward(difficulty));
+    }
+
+    /** Returns the configured bonus without accruing it; invalid or overflowing values return 0. */
+    public int getLevelReward(int difficulty) {
         final long calculatedReward;
 
         switch (difficulty) {
@@ -168,14 +170,10 @@ public class RewardSystem {
                 calculatedReward = (long) baseLevelReward * 2;
                 break;
             default:
-                return false;
+                return 0;
         }
 
-        if (calculatedReward > Integer.MAX_VALUE) {
-            return false;
-        }
-
-        return accumulateReward((int) calculatedReward);
+        return calculatedReward > Integer.MAX_VALUE ? 0 : (int) calculatedReward;
     }
 
 

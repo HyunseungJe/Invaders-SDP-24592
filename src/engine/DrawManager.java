@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 
 import screen.Screen;
 import hud.FloatingScoreHud;
+import currency.PermanentUpgrade;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
 import shop.ShopController.SaveStatus;
@@ -885,9 +886,9 @@ public final class DrawManager {
     }
 
     /** Draws the shop cards and purchase/save feedback. */
-    public void drawShop(final Screen screen, final List<ShopProduct> items,
+    public void drawShop(final Screen screen, final List<ShopProduct> upgrades,
             final List<ShopProduct> unlocks, final PlayerAssetsState assets, final int section,
-            final int itemIndex, final int unlockIndex, final int actionIndex,
+            final int upgradeIndex, final int unlockIndex, final int actionIndex,
             final String feedback, final boolean purchaseSucceeded, final SaveStatus saveStatus) {
         int width = screen.getWidth();
         int height = screen.getHeight();
@@ -900,8 +901,8 @@ public final class DrawManager {
                 - Icon.COIN.getWidth() * 2 - 6, 47, 2);
 
         int cardSize = Math.max(76, Math.min(120, Math.min((width - 80) / 3, (height - 248) / 2)));
-        drawShopShelf(screen, items, assets, "Items", "No items available",
-                96, cardSize, itemIndex, section == 0);
+        drawShopShelf(screen, upgrades, assets, "Upgrades", "No upgrades available",
+                96, cardSize, upgradeIndex, section == 0);
         drawShopShelf(screen, unlocks, assets, "Unlocks", "No unlocks available",
                 132 + cardSize, cardSize, unlockIndex, section == 1);
 
@@ -959,20 +960,45 @@ public final class DrawManager {
             int x, int y, int size, boolean selected) {
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.DARK_GRAY);
         backBufferGraphics.drawRect(x, y, size, size);
-        boolean permanent = product.getCategory() == Category.UNLOCKABLE;
-        boolean owned = permanent && assets.getUnlockedContentIds().contains(product.getId());
-        Integer quantity = assets.getItemQuantities().get(product.getId());
-        String badge = owned ? "Owned" : !permanent ? "x" + (quantity == null ? 0 : quantity) : "";
+        boolean owned = assets.getUnlockedContentIds().contains(product.getId());
+        boolean available = product.isAvailableByDefault();
+        String badge = available ? "Available" : owned ? "Owned" : "";
         drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-        drawShopCategoryIcon(permanent, x + size / 2 - 10, y + 20);
+        drawShopProductIcon(product, x + size / 2, y + 18);
         drawShopText(product.getName(), x + 9, y + 60, 11,
                 selected ? Color.GREEN : Color.WHITE, size - 18);
         drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
         backBufferGraphics.setColor(Color.DARK_GRAY);
         backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
-        String price = owned ? "Unlocked" : product.getPrice() + " C";
-        drawShopText(price, x + 9, y + size - 9, 11, owned ? Color.GRAY : Color.WHITE, size - 18);
+        String price = available || owned ? "Unlocked" : product.getPrice() + " C";
+        drawShopText(price, x + 9, y + size - 9, 11, available || owned ? Color.GRAY : Color.WHITE, size - 18);
+    }
+
+    private void drawShopProductIcon(ShopProduct product, int centerX, int y) {
+        if (product.getShipType() != null) {
+            boolean[][] sprite = ShipSprites.forType(product.getShipType());
+            backBufferGraphics.setColor(Color.WHITE);
+            for (int x = 0; x < sprite.length; x++) {
+                for (int row = 0; row < sprite[x].length; row++) {
+                    if (sprite[x][row]) {
+                        backBufferGraphics.fillRect(centerX - sprite.length + x * 2, y + 8 + row * 2, 2, 2);
+                    }
+                }
+            }
+            return;
+        }
+        PermanentUpgrade upgrade = PermanentUpgrade.forProduct(product.getId());
+        if (upgrade == null) {
+            drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, centerX - 10, y + 2);
+            return;
+        }
+        Icon icon = switch (upgrade) {
+        case HULL -> Icon.UPGRADE_HULL;
+        case ENGINE -> Icon.UPGRADE_ENGINE;
+        case RELOADER -> Icon.UPGRADE_RELOADER;
+        };
+        drawIcon(icon, centerX - icon.getWidth(), y, 2);
     }
 
     /** Neutral placeholders until content owners supply agreed product artwork. */

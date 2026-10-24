@@ -14,6 +14,7 @@ import entity.item.ChameleonHull;
 import entity.item.ItemManager;
 import entity.item.ShieldItem;
 import engine.Cooldown;
+import engine.CampaignUpgrades;
 import engine.Core;
 import engine.GameSettings;
 import engine.GameState;
@@ -154,6 +155,7 @@ public class GameScreen extends Screen {
 
 	/** Player ship type selected before the stage started. */
 	private ShipType shipType;
+	private final CampaignUpgrades campaignUpgrades;
     /** Current game difficulty settings. */
     private GameSettings gameSettings;
 	/** Settings of every wave in this stage, in play order. */
@@ -378,7 +380,28 @@ public class GameScreen extends Screen {
 					  final List<GameSettings> waves, final boolean bonusLife,
 					  final int width, final int height, final int fps,
 					  final ShipType shipType, final RunSession runSession) {
+        this(gameState, waves, bonusLife, width, height, fps, shipType, runSession,
+                CampaignUpgrades.none());
+    }
+
+    public GameScreen(final GameState gameState, final GameSettings gameSettings,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final CampaignUpgrades campaignUpgrades) {
+        this(gameState, Collections.singletonList(gameSettings), bonusLife,
+                width, height, fps, shipType, runSession, campaignUpgrades);
+    }
+
+    /** Campaign-only entry point; legacy and custom-level constructors keep base stats. */
+    public GameScreen(final GameState gameState, final List<GameSettings> waves,
+            final boolean bonusLife, final int width, final int height, final int fps,
+            final ShipType shipType, final RunSession runSession,
+            final CampaignUpgrades campaignUpgrades) {
         super(width, height, fps);
+        if (campaignUpgrades == null) {
+            throw new IllegalArgumentException("Campaign upgrades cannot be null.");
+        }
+        this.campaignUpgrades = campaignUpgrades;
 
 		this.runSession = runSession;
 		this.recordsService = Core.getRecordsService();
@@ -404,8 +427,8 @@ public class GameScreen extends Screen {
         this.score = gameState.getScore();
 		this.playerStatus = new PlayerStatus(
 				Math.min(gameState.getLivesRemaining(),
-						this.shipType.getMaxLives()),
-				this.shipType.getMaxLives(),
+						this.campaignUpgrades.getMaxLives(this.shipType)),
+				this.campaignUpgrades.getMaxLives(this.shipType),
 				this.shipType.isShieldCapable());
         if (this.bonusLife)
 			this.playerStatus.gainLife();
@@ -442,6 +465,7 @@ public class GameScreen extends Screen {
 
 		this.ship = new Ship(this.width / 2, this.height - 30,
 				this.shipType);
+        this.campaignUpgrades.initializeShip(this.ship);
 		// The hangar colour has to go through setBaseColor: the ship resets
 		// its colour to the base one every frame once the damage flash is
 		// over, so a plain setColour is wiped back to the default green.

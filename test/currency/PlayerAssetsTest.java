@@ -13,8 +13,6 @@ class PlayerAssetsTest {
         assertEquals(0, assets.getBalance());
         assertFalse(assets.canAfford(1));
         assertFalse(assets.isUnlocked("BGM_01"));
-        assertFalse(assets.hasItem("BOMB"));
-        assertEquals(0, assets.getItemQuantity("BOMB"));
         assertTrue(assets.snapshot().getUnlockedContentIds().isEmpty());
         assertTrue(assets.snapshot().getItemQuantities().isEmpty());
     }
@@ -26,14 +24,8 @@ class PlayerAssetsTest {
         assertTrue(assets.canAfford(100));
         assertTrue(assets.deductCurrency(30));
         assertTrue(assets.unlock("BGM_01"));
-        assertTrue(assets.addItem("BOMB", 3));
-        assertTrue(assets.removeItem("BOMB", 1));
         assertEquals(70, assets.getBalance());
         assertTrue(assets.isUnlocked("BGM_01"));
-        assertTrue(assets.hasItem("BOMB"));
-        assertEquals(2, assets.getItemQuantity("BOMB"));
-        assertTrue(assets.removeItem("BOMB", 2));
-        assertFalse(assets.hasItem("BOMB"));
         assertFalse(assets.snapshot().getItemQuantities().containsKey("BOMB"));
     }
 
@@ -70,20 +62,16 @@ class PlayerAssetsTest {
     }
 
     @Test
-    void rejectedInventoryOperationsPreserveAllAssets() {
+    void legacyItemDataSurvivesBalanceAndOwnershipChanges() {
         PlayerAssets assets = populatedAssets();
-        PlayerAssetsState before = assets.snapshot();
-
-        assertFalse(assets.addItem(null, 1));
-        assertStateEquals(before, assets.snapshot());
-        assertFalse(assets.addItem("BOMB", 0));
-        assertStateEquals(before, assets.snapshot());
-        assertFalse(assets.addItem("BOMB", Integer.MAX_VALUE));
-        assertStateEquals(before, assets.snapshot());
-        assertFalse(assets.removeItem("BOMB", 3));
-        assertStateEquals(before, assets.snapshot());
-        assertFalse(assets.removeItem("BOMB", -1));
-        assertStateEquals(before, assets.snapshot());
+        assertTrue(assets.deductCurrency(30));
+        assertTrue(assets.unlock("upgrade.hull.1"));
+        assertEquals(Collections.singletonMap("BOMB", 2), assets.snapshot().getItemQuantities());
+        PlayerAssets restored = new PlayerAssets();
+        assertTrue(restored.restore(assets.snapshot()));
+        assertEquals(70, restored.getBalance());
+        assertTrue(restored.isUnlocked("upgrade.hull.1"));
+        assertEquals(Collections.singletonMap("BOMB", 2), restored.snapshot().getItemQuantities());
     }
 
     @Test
@@ -107,11 +95,9 @@ class PlayerAssetsTest {
 
         assertTrue(assets.addCurrency(50));
         assertTrue(assets.unlock("STAGE_02"));
-        assertTrue(assets.removeItem("BOMB", 2));
 
         assertEquals(150, assets.getBalance());
         assertTrue(assets.isUnlocked("STAGE_02"));
-        assertFalse(assets.hasItem("BOMB"));
         assertStateEquals(populatedState(), snapshot);
     }
 
@@ -119,15 +105,14 @@ class PlayerAssetsTest {
     void restoreReplacesAllExistingAssets() {
         PlayerAssetsState snapshot = populatedState();
         PlayerAssets target = new PlayerAssets();
-        assertTrue(target.addCurrency(999));
-        assertTrue(target.unlock("OLD_STAGE"));
-        assertTrue(target.addItem("OLD_ITEM", 4));
+        assertTrue(target.restore(new PlayerAssetsState(999, Collections.singleton("OLD_STAGE"),
+                Collections.singletonMap("OLD_ITEM", 4))));
 
         assertTrue(target.restore(snapshot));
 
         assertStateEquals(snapshot, target.snapshot());
         assertFalse(target.isUnlocked("OLD_STAGE"));
-        assertFalse(target.hasItem("OLD_ITEM"));
+        assertFalse(target.snapshot().getItemQuantities().containsKey("OLD_ITEM"));
     }
 
     @Test
@@ -139,11 +124,10 @@ class PlayerAssetsTest {
 
         assertTrue(target.deductCurrency(10));
         assertTrue(target.unlock("STAGE_02"));
-        assertTrue(target.removeItem("BOMB", 1));
 
         assertEquals(90, target.getBalance());
         assertTrue(target.isUnlocked("STAGE_02"));
-        assertEquals(1, target.getItemQuantity("BOMB"));
+        assertEquals(2, target.snapshot().getItemQuantities().get("BOMB"));
         assertStateEquals(populatedState(), snapshot);
         assertStateEquals(populatedState(), source.snapshot());
     }
@@ -155,7 +139,6 @@ class PlayerAssetsTest {
         assertTrue(target.restore(snapshot));
         assertTrue(target.deductCurrency(10));
         assertTrue(target.unlock("STAGE_02"));
-        assertTrue(target.removeItem("BOMB", 1));
 
         assertTrue(target.restore(snapshot));
 
@@ -188,15 +171,11 @@ class PlayerAssetsTest {
         assertStateEquals(maximum, assets.snapshot());
         assertFalse(assets.addCurrency(1));
         assertStateEquals(maximum, assets.snapshot());
-        assertFalse(assets.addItem("BOMB", 1));
-        assertStateEquals(maximum, assets.snapshot());
     }
 
     private PlayerAssets populatedAssets() {
         PlayerAssets assets = new PlayerAssets();
-        assertTrue(assets.addCurrency(100));
-        assertTrue(assets.unlock("BGM_01"));
-        assertTrue(assets.addItem("BOMB", 2));
+        assertTrue(assets.restore(populatedState()));
         return assets;
     }
 
