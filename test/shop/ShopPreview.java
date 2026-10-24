@@ -30,6 +30,10 @@ public final class ShopPreview {
     private ShopPreview() { }
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && "--upgrades".equals(args[0])) {
+            runUpgradePreview();
+            return;
+        }
         boolean smoke = args.length > 0 && "--smoke".equals(args[0]);
         output = Files.createTempDirectory(smoke ? "shop-smoke-" : "shop-preview-");
         System.out.println("Preview files: " + output);
@@ -70,6 +74,23 @@ public final class ShopPreview {
         }
     }
 
+    private static void runUpgradePreview() throws Exception {
+        Path directory = java.nio.file.Paths.get(System.getProperty("invaders.storageDir"));
+        Files.createDirectories(directory);
+        Files.createDirectories(java.nio.file.Paths.get(System.getProperty("user.home")));
+        seedUpgradePreview(Core.getFileManager(), directory);
+        System.out.println("Upgrade preview saves: " + directory);
+        System.out.println("Open Shop, purchase upgrades, then start Campaign. Preview credits are granted once.");
+        Core.main(new String[0]);
+    }
+
+    static void seedUpgradePreview(FileManager files, Path directory) throws IOException {
+        Path save = directory.resolve(FileManager.ASSETS_FILENAME);
+        if (!Files.exists(save)) {
+            files.savePlayerAssets(new PlayerAssetsState(3000, null, null), save);
+        }
+    }
+
     private static void smoke(Frame frame, PlayerAssets assets, ShopController shop, FileManager files,
             ShopTestFixtures.SaveFile saveFile)
             throws Exception {
@@ -104,7 +125,8 @@ public final class ShopPreview {
                 && restored.getItemQuantities().get(ShopTestFixtures.CONSUMABLE) == 2
                 && restored.getUnlockedContentIds().contains(ShopTestFixtures.UNLOCK), "Reload both assets");
 
-        run(frame, new ShopController(assets, files), new int[] {0, space}, new String[] {"08-empty", null});
+        run(frame, ShopTestFixtures.controller(assets, saveFile, java.util.Collections.<ShopProduct>emptyList()),
+                new int[] {0, space}, new String[] {"08-empty", null});
         run(frame, ShopTestFixtures.controller(new PlayerAssets(), saveFile),
                 new int[] {0, space, 0, escape}, new String[] {null, "09-insufficient", null, null});
 

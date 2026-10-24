@@ -244,3 +244,22 @@ tasks.named('wrapper', Wrapper) {
     distributionSha256Sum = '21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607'
     networkTimeout = 60000
 }
+
+// Funded local preview; normal game saves and balances are not used.
+tasks.register('previewUpgrades', JavaExec) {
+    group = 'application'
+    description = 'Runs the game with permanent upgrades and an isolated 3000-credit save.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shop.ShopPreview'
+    args '--upgrades'
+    systemProperty 'java.util.prefs.PreferencesFactory', 'shop.PreviewPreferencesFactory'
+    def previewDirectory = layout.buildDirectory.dir('upgrade-preview').get().asFile
+    workingDir = previewDirectory
+    systemProperty 'invaders.storageDir', previewDirectory.absolutePath
+    systemProperty 'user.home', new File(previewDirectory, 'home').absolutePath
+    systemProperty 'file.encoding', 'UTF-8'
+    doFirst {
+        new File(previewDirectory, 'home').mkdirs()
+    }
+}

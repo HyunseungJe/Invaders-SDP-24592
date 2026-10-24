@@ -8,6 +8,8 @@ The asset and purchase system manages the player's currency, inventory, permanen
 
 The goal is to clarify how these responsibilities work together so that the Shop and Item systems can use the same player asset data consistently.
 
+Permanent Campaign stat upgrades and their isolated preview are described in [Permanent Upgrades](Permanent-Upgrades.md).
+
 ## 2. System Overview
 
 The asset and purchase system consists of the following classes in `src/currency`.
