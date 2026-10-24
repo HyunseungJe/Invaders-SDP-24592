@@ -118,7 +118,7 @@ public final class PlayerStatSourceTest {
 				ShipType.TANK };
 		int[] speeds = { 2, 4, 1 };
 		int[] intervals = { 750, 400, 1000 };
-		int[] maxLives = { 3, 2, 5 };
+		int[] maxLives = { 4, 3, 5 };
 		for (int i = 0; i < types.length; i++) {
 			Ship ship = new Ship(100, 100, types[i]);
 			check(ship.getShipType() == types[i],

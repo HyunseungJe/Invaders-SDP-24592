@@ -35,7 +35,7 @@ public final class PlayerStatusExtraLifeTest {
 	private static void checkShipLifeLimits() throws Exception {
 		ShipType[] shipTypes = { ShipType.STANDARD, ShipType.SPEEDSTER,
 				ShipType.TANK };
-		int[] expectedMaxLives = { 3, 2, 5 };
+		int[] expectedMaxLives = { 4, 3, 5 };
 		for (int i = 0; i < shipTypes.length; i++) {
 			GameScreen screen = createGameScreen(
 					new GameState(1, 0, 3, 0, 0), false, shipTypes[i]);
@@ -50,18 +50,22 @@ public final class PlayerStatusExtraLifeTest {
 	private static void checkGainLifeAndCap() {
 		PlayerStatus standard = new PlayerStatus(1, ShipType.STANDARD.getMaxLives());
 		check(standard.gainLife() && standard.getLives() == 2,
-				"STANDARD gains one life from 1/3 to 2/3");
+				"STANDARD gains one life from 1/4 to 2/4");
 		check(standard.gainLife() && standard.getLives() == 3,
-				"STANDARD gains one life from 2/3 to 3/3");
-		check(!standard.gainLife() && standard.getLives() == 3,
-				"STANDARD cannot exceed 3/3");
+				"STANDARD gains one life from 2/4 to 3/4");
+		check(standard.gainLife() && standard.getLives() == 4,
+				"STANDARD gains one life from 3/4 to 4/4");
+		check(!standard.gainLife() && standard.getLives() == 4,
+				"STANDARD cannot exceed 4/4");
 
 		PlayerStatus speedster = new PlayerStatus(1,
 				ShipType.SPEEDSTER.getMaxLives());
 		check(speedster.gainLife() && speedster.getLives() == 2,
-				"SPEEDSTER gains a life up to 2/2");
-		check(!speedster.gainLife() && speedster.getLives() == 2,
-				"SPEEDSTER cannot exceed 2/2");
+				"SPEEDSTER gains a life up to 2/3");
+		check(speedster.gainLife() && speedster.getLives() == 3,
+				"SPEEDSTER gains a life up to 3/3");
+		check(!speedster.gainLife() && speedster.getLives() == 3,
+				"SPEEDSTER cannot exceed 3/3");
 
 		PlayerStatus tank = new PlayerStatus(1, ShipType.TANK.getMaxLives());
 		for (int expectedLives = 2; expectedLives <= 5; expectedLives++)
@@ -88,8 +92,8 @@ public final class PlayerStatusExtraLifeTest {
 				"Gained life persists through the next GameState and level");
 
 		GameScreen fullLives = createGameScreen(
-				new GameState(3, 0, 3, 0, 0), true, ShipType.STANDARD);
-		check(fullLives.getGameState().getLivesRemaining() == 3,
+				new GameState(3, 0, 4, 0, 0), true, ShipType.STANDARD);
+		check(fullLives.getGameState().getLivesRemaining() == 4,
 				"Bonus life at the maximum does not exceed the cap");
 
 		GameScreen speedsterBonus = createGameScreen(

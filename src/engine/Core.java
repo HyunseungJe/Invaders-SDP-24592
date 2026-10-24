@@ -6,6 +6,8 @@ import java.util.logging.FileHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.swing.JOptionPane;
 
@@ -21,6 +23,7 @@ import records.RunSession;
 import records.RunRecord;
 import records.RunRecordFormatter;
 import records.RecordsService;
+import level.LevelDefinition;
 import audio.AudioControls;
 import screen.AudioControlScreen;
 import screen.GameScreen;
@@ -132,7 +135,8 @@ public final class Core {
 		int returnCode = 1;
 		do {
 			gameState = new GameState(1, 0, MAX_LIVES, 0, 0);
-
+			// When starting a new game, reset the difficulty adjustment conditions (player has 1 life or less && player has not cleared 3 levels while on low difficulty)
+			DifficultyAdjustWhilePlaying.getInstance().reset();
 			switch (returnCode) {
 			case 1:
 				// Main menu.
@@ -428,6 +432,39 @@ public final class Core {
 				break;
 			result = gameplayAssets.retrySave();
 		}
+	}
+
+	/**
+	 * Runs one validated custom stage in the existing window and returns its result.
+	 * Call on the game's screen-running thread after file selection/import completes.
+	 * This path never enters the official campaign loop, unlocks stages, or submits
+	 * a high score. The caller decides which menu/result screen to display next.
+	 */
+	public static GameState playCustomLevel(final LevelDefinition definition) {
+		if (frame == null)
+			throw new IllegalStateException("The game window must be initialized first");
+		return runCustomLevel(definition, GameplayConfig.getMultiplier(),
+				frame.getWidth(), frame.getHeight(), FPS, screen -> {
+					currentScreen = screen;
+					frame.setScreen(screen);
+				});
+	}
+
+	/** Creates the menu/controller's persistent custom-level selection for this window. */
+	public static CustomLevelSession createCustomLevelSession() {
+		if (frame == null)
+			throw new IllegalStateException("The game window must be initialized first");
+		return new CustomLevelSession(frame.getWidth(), frame.getHeight());
+	}
+
+	// Runner is separated so handoff and unlock isolation can be checked headlessly.
+	static GameState runCustomLevel(final LevelDefinition definition, final double multiplier,
+			final int width, final int height, final int fps, final Consumer<GameScreen> runner) {
+		Objects.requireNonNull(runner, "runner");
+		GameScreen custom = GameScreen.forCustomLevel(
+				new GameState(1, 0, MAX_LIVES, 0, 0), definition, multiplier, width, height, fps);
+		runner.accept(custom);
+		return custom.getGameState();
 	}
 
 	private static GameSettings applyDifficulty(

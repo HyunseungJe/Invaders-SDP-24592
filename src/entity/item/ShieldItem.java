@@ -1,5 +1,6 @@
 package entity.item;
 
+import engine.Core;
 import engine.DrawManager.SpriteType;
 import entity.Ship;
 
@@ -21,9 +22,11 @@ public class ShieldItem extends Item {
 
     @Override
     public void applyEffect(final Ship ship) {
-        if (ship != null) {
+        // Ship.setShieldActive also refuses, but checking here keeps the
+        // log line below from claiming a shield that never came up.
+        if (ship != null && ship.getShipType().isShieldCapable()) {
             ship.setShieldActive(true);
-            System.out.println("[ITEM] Energy Shield activé pour 15 secondes !");
+            Core.getLogger().info("Energy Shield activated for 15 seconds.");
         }
     }
 
@@ -31,7 +34,7 @@ public class ShieldItem extends Item {
     public void removeEffect(final Ship ship) {
         if (ship != null) {
             ship.setShieldActive(false);
-            System.out.println("[ITEM] Energy Shield expiré !");
+            Core.getLogger().info("Energy Shield expired.");
         }
     }
 

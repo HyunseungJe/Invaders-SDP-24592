@@ -6,6 +6,7 @@ import engine.GameSettings;
 import engine.GameState;
 import entity.PlayerStatus;
 import entity.Ship;
+import entity.ShipType;
 
 /**
  * Standalone checks that every source of damage reaches the player through
@@ -28,6 +29,7 @@ public final class PlayerDamagePathTest {
 		checkChameleonHullStopsBossDamage();
 		checkTimedShieldStopsDamageAndEffects();
 		checkOverlappingBulletsCostOneLifeBetweenThem();
+		checkProtectionOutlastsTheStun();
 
 		System.out.println("Player damage path checks passed.");
 	}
@@ -49,7 +51,8 @@ public final class PlayerDamagePathTest {
 	 * this check entirely.
 	 */
 	private static void checkEnergyShieldStopsBossDamage() throws Exception {
-		GameScreen game = newGame();
+		// Only a shield-capable ship can hold the Energy Shield.
+		GameScreen game = newGame(ShipType.TANK);
 		PlayerStatus status = statusOf(game);
 		shipOf(game).setShieldActive(true);
 
@@ -79,9 +82,11 @@ public final class PlayerDamagePathTest {
 	 */
 	private static void checkTimedShieldStopsDamageAndEffects()
 			throws Exception {
-		GameScreen game = newGame();
+		// Only a shield-capable ship may raise one, so this case has to be
+		// played with the Heavy Tank rather than the default ship.
+		GameScreen game = newGame(ShipType.TANK);
 		PlayerStatus status = statusOf(game);
-		status.activateShield();
+		check(status.activateShield(), "The Heavy Tank raises a shield");
 
 		check(!game.damagePlayer(1, "test"),
 				"A hit is refused while the timed shield is up");
@@ -108,9 +113,58 @@ public final class PlayerDamagePathTest {
 				"Overlapping bullets cost one life between them, not three");
 	}
 
+	/**
+	 * The controls come back before the protection ends. Enemy fire is aimed,
+	 * so the shots taken while the ship was held in place converge on the spot
+	 * it was held at; without this margin the player would be hit there on the
+	 * very frame they regain control.
+	 */
+	private static void checkProtectionOutlastsTheStun() throws Exception {
+		GameScreen game = newGame();
+		PlayerStatus status = statusOf(game);
+		Ship ship = shipOf(game);
+
+		check(game.damagePlayer(1, "first"), "The first hit lands");
+		check(ship.isDestroyed() && ship.isInvulnerable(),
+				"An accepted hit starts both the stun and the protection");
+
+		endCooldown(ship, "destructionCooldown");
+		check(!ship.isDestroyed(), "The stun ends first");
+		check(ship.isInvulnerable(),
+				"The protection outlasts the stun, so the player can move "
+						+ "away while still immune");
+		check(!game.damagePlayer(1, "aimed shot"),
+				"A hit is refused while the protection is still running");
+		check(status.getLives() == 2,
+				"A refused hit during the protection costs no life");
+
+		endCooldown(ship, "invulnerabilityCooldown");
+		check(!ship.isInvulnerable(), "The protection ends after the stun");
+		check(game.damagePlayer(1, "second"),
+				"A hit lands again once the protection is over");
+		check(status.getLives() == 1,
+				"The hit after the protection costs exactly one life");
+	}
+
+	/** Ends one of the ship's cooldowns without waiting for the clock. */
+	private static void endCooldown(final Ship ship, final String name)
+			throws Exception {
+		Field field = Ship.class.getDeclaredField(name);
+		field.setAccessible(true);
+		Object cooldown = field.get(ship);
+		Field time = cooldown.getClass().getDeclaredField("time");
+		time.setAccessible(true);
+		time.setLong(cooldown, 0L);
+	}
+
 	private static GameScreen newGame() {
+		return newGame(ShipType.STANDARD);
+	}
+
+	private static GameScreen newGame(final ShipType shipType) {
 		GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
-				new GameSettings(5, 4, 60, 2000), false, 448, 520, 60);
+				new GameSettings(5, 4, 60, 2000), false, 448, 520, 60,
+				shipType);
 		game.initialize();
 		return game;
 	}

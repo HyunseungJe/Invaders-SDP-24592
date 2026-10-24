@@ -1,7 +1,10 @@
 # Level JSON Format — Draft v1
 
 Status: draft contract. A shared model/interface prototype is available in
-`src/level/`; concrete JSON IO and gameplay integration are not implemented.
+`src/level/`; JSON export is implemented by `JsonLevelWriter`, and custom gameplay
+handoff is available through `GameScreen.forCustomLevel` / `Core.playCustomLevel`.
+See `Level_JSON_Export.md` and `Custom_Level_Gameplay.md` for their behavior and
+checks. JSON import and menu wiring remain separate work.
 See `Level_Model_API.md` for the prototype API and remaining decisions.
 
 ## Review questions
@@ -170,7 +173,7 @@ implemented. The sample's provisional values are not that registry.
 
 A reviewable prototype now implements these models and interfaces in `level`.
 See `Level_Model_API.md` for proposed signatures and validation boundaries.
-Concrete reader/writer implementations and interaction with
+The concrete writer is `JsonLevelWriter`; the reader and interaction with
 `campaign.CampaignStageData` are still pending. Confirm the contract through
 issue #16 and PR review before implementing the two sides independently.
 
@@ -183,16 +186,17 @@ issue #16 and PR review before implementing the two sides independently.
 | `formation.initialX` / `initialY` | Starting coordinates added to `GameSettings` by PR #15. |
 | `movementBaseFrames` | `GameSettings.baseSpeed` |
 | `shootingIntervalMs` | `GameSettings.shootingFrecuency` (existing spelling) |
-| Cell enemy types and null cells | Requires formation generation changes; current code fills every cell and derives A/B/C from row position. |
-| Cell health | Requires enemy health support; current enemies are destroyed on one hit. |
-| Multiple waves | Requires gameplay progression changes; current `GameScreen` ends a stage when its single formation is empty. |
+| Cell enemy types and null cells | Custom formations use the original grid and current A/B/C runtime adapter, preserving null positions. |
+| Cell health | Custom enemies accept positive health; normal bullets damage once and award kills only on death. Legacy enemies default to one hit. |
+| Multiple waves | Custom definitions use #21 progression; only the final wave clears the stage. |
 
 Dimensions alone cannot represent a sparse grid through the current
 `GameSettings` object. The shared wave data must also reach formation generation.
 That code must preserve grid coordinates, select the lowest occupied enemy in
 nonempty columns for shooting, handle empty rows/columns, and base remaining-enemy
 proportions on the actual initial enemy count rather than total grid capacity.
-These changes belong to gameplay integration, not JSON parsing alone.
+The custom gameplay path now implements these behaviors; see
+`Custom_Level_Gameplay.md` for runtime compatibility checks and remaining UI work.
 
 `movementBaseFrames` is not pixels per second or a fixed movement interval.
 The current formation calculates a threshold approximately as
@@ -210,13 +214,13 @@ The sample's first wave reproduces the current first stage's 5-column,
 `EnemyShipFormation` selects C when the row ratio is below 0.2 and B below
 0.6; row index 2 of 4 has ratio 0.5, so it is B, not A. Both sample waves use health `1`, matching the current
 one-hit enemy behavior. The second wave demonstrates mixed enemy types, empty
-cells, an entirely empty column, and an entirely empty row. These layouts and
-multi-wave progression require gameplay integration before the complete sample
-is playable.
+cells, an entirely empty column, and an entirely empty row. The custom gameplay
+handoff supports these layouts and multi-wave progression. Loading this JSON
+through a menu still requires the separate importer and UI wiring.
 
 An extension could set a cell to `{ "enemyType": "C", "health": 2 }`. This
 means two hit points for that enemy and requires health/damage handling;
-it is not included in the baseline sample or claimed as current game support.
+it is not included in the baseline sample but is supported by custom gameplay.
 
 ## Import and export contract
 
@@ -268,6 +272,7 @@ After resolving the review questions above:
 - After gameplay integration, verify that wave one does not clear the stage,
   that wave two can complete it, and that zero lives prevents progression.
 
-The prototype implements only shared data models and IO interfaces. It does
-not implement JSON reading/writing or change gameplay. The model checks are
-documented separately; the JSON/gameplay acceptance checks above remain pending.
+The implementation includes shared models, IO interfaces, JSON export, and
+validated custom gameplay handoff. JSON import, menu wiring, and reader/writer
+round trips remain separate work. See `Level_JSON_Export.md` and
+`Custom_Level_Gameplay.md` for the checks performed and remaining limitations.

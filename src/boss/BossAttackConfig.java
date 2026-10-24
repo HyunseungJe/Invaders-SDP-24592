@@ -167,7 +167,7 @@ public final class BossAttackConfig {
                 .add(new AttackPattern.MultiShot(3.5, 45, 70, 90, 110, 135), 1);
         return new BossAttackConfig(2000, 1,
                 new PhaseConfig[] { phase1, phase2, phase3 },
-                new SpecialAttack.RingBurst(8000, 1000, 24, 2.5));
+                new SpecialAttack.RingBurst(12000, 1500, 16, 2.0));
     }
 
     /**

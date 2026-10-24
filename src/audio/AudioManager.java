@@ -2,9 +2,7 @@ package audio;
 
 import engine.Core;
 
-import javax.sound.sampled.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -15,34 +13,31 @@ import java.util.logging.Logger;
 public class AudioManager {
 
     /** Application logger. */
-    private static Logger logger;
+    private static final Logger logger = Core.getLogger();
 
     /** Shared audio resource cache for background music and sound effects. */
     private static AudioCache audioCache;
 
-    /** Clip for the current background music. */
-    private static Clip bgmClip;
+    /** Shared mixer that combines BGM and SFX into a single audio output line. */
+    private static AudioMixer audioMixer;
 
-    /** Mutex for background music playback management. */
-    private static final Object BGM_MUTEX = new Object();
+    /** Looping audio bus for background music. */
+    private static final AudioBus bgmBus = new AudioBus(true);
 
-    /** Mutex for sound effect playback management. */
-    private static final Object SFX_MUTEX = new Object();
+    /** Non-looping audio bus for independently controlled sound effects. */
+    private static final AudioBus sfxBus = new AudioBus();
 
-    /** Clips indexed by their playback IDs. */
-    private static final Map<Integer, Clip> sfxClips = new HashMap<>();
-
-    /** Next sound effect playback ID. */
-    private static int nextSFXId = 0;
-
-    /** Background music volume, from 0 to 100; 50 preserves the original gain. */
-    private static int bgmVolume = 50;
-
-    /** Sound effect volume, from 0 to 100; 50 preserves the original gain. */
-    private static int sfxVolume = 50;
+    /** Whether the mixer, audio buses, and cache were successfully initialized. */
+    private static boolean initialized = false;
 
     /** Global mute state, visible across audio control threads. */
     private static volatile boolean muted = false;
+
+    /** Total initialization attempts, including startup and mixer recovery. */
+    private static int initAttempts = 0;
+
+    /** Maximum initialization attempts during this application run. */
+    private static final int MAX_INIT_ATTEMPTS = 10;
 
     static {
         initialize();
@@ -50,55 +45,59 @@ public class AudioManager {
 
     /**
      * Initializes the audio system and required internal resources.
+     * Returns immediately if already initialized or the attempt limit is reached.
+     * Each attempt clears active playbacks but preserves bus settings and cached
+     * resources. The error listener requests recovery after mixer cleanup.
      */
-    private static void initialize() {
-        logger = Core.getLogger();
-        audioCache = new AudioCache();
-        bgmClip = null;
-        logger.info("Audio system initialized.");
+    private synchronized static void initialize() {
+        if (initialized || initAttempts >= MAX_INIT_ATTEMPTS) return;
+        initAttempts++;
+        try {
+            bgmBus.stopAll();
+            sfxBus.stopAll();
+            if (audioMixer != null) audioMixer.shutdown();
+            audioMixer = new AudioMixer(new AudioMixer.MixerErrorListener() {
+                /** Marks audio unavailable and retries initialization under the manager lock. */
+                @Override
+                public void onError(Exception e) {
+                    synchronized (AudioManager.class) {
+                        initialized = false;
+                        initialize();
+                    }
+                }
+            });
+            audioMixer.registerPlaybackGroup("bgm", bgmBus);
+            audioMixer.registerPlaybackGroup("sfx", sfxBus);
+            if (audioCache == null) audioCache = new AudioCache();
+            logger.info("Audio system initialized.");
+            initialized = true;
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to initialize audio system: " + e, e);
+        }
     }
 
     /**
      * Plays the specified background music in a continuous loop.
-     * Replaces the current BGM after the new resource is loaded.
      * Playback failures are logged.
-     * Use 16-bit PCM WAV resources for compatibility.
+     * Source WAV resources are converted to the mixer's 44.1 kHz, 16-bit signed
+     * stereo PCM format by the cache; 48 kHz and mono sources are supported.
      *
      * @param path the resource path relative to the classpath root,
      *             without a leading slash or the res directory prefix
      */
     public static void playBGM(String path) {
-        Clip newClip = null;
-        boolean started = false;
-
+        initialize();
+        if (!initialized) return;
         try {
-            if (path == null || path.trim().isEmpty()) {
-                logger.warning("BGM path must not be empty.");
-                return;
-            }
-
-            AudioCache.AudioResource resource = audioCache.getAudioData(path);
-            if (resource == null) return;
-
-            newClip = AudioSystem.getClip();
-            newClip.open(resource.format, resource.data, 0, resource.data.length);
-
-            synchronized (BGM_MUTEX) {
-                stopBGM();
-
-                newClip.setFramePosition(0);
-                applyVolume(newClip, bgmVolume);
-                newClip.loop(Clip.LOOP_CONTINUOUSLY);
-
-                bgmClip = newClip;
-                started = true;
+            AudioResource resource = audioCache.getAudioData(path);
+            AudioBus group = bgmBus;
+            synchronized (group) {
+                group.stopAll();
+                group.play(resource);
+                group.setPaused(false);
             }
         } catch (Exception e) {
-            logger.warning("Failed to play BGM: " + path + " / " + e);
-
-        } finally {
-            if (!started && newClip != null)
-                releaseClip(newClip);
+            logger.log(Level.WARNING, "Failed to play BGM [path=" + path + "]: " + e, e);
         }
     }
 
@@ -106,14 +105,10 @@ public class AudioManager {
      * Stops the currently playing background music.
      */
     public static void stopBGM() {
-        synchronized (BGM_MUTEX) {
-            if (bgmClip == null) {
-                logger.info("No BGM is loaded.");
-                return;
-            }
-
-            releaseClip(bgmClip);
-            bgmClip = null;
+        try {
+            bgmBus.stopAll();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to stop BGM: " + e, e);
         }
     }
 
@@ -121,22 +116,10 @@ public class AudioManager {
      * Pauses the currently playing background music.
      */
     public static void pauseBGM() {
-        synchronized (BGM_MUTEX) {
-            if (bgmClip == null || !bgmClip.isOpen()) {
-                logger.warning("Cannot pause BGM: no BGM is loaded.");
-                return;
-            }
-
-            if (!bgmClip.isRunning()) {
-                logger.info("BGM is already paused.");
-                return;
-            }
-
-            try {
-                bgmClip.stop();
-            } catch (Exception e) {
-                logger.warning("Cannot pause BGM: " + e);
-            }
+        try {
+            bgmBus.setPaused(true);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to pause BGM: " + e, e);
         }
     }
 
@@ -144,21 +127,10 @@ public class AudioManager {
      * Resumes the previously paused background music.
      */
     public static void resumeBGM() {
-        synchronized (BGM_MUTEX) {
-            if (bgmClip == null || !bgmClip.isOpen()) {
-                logger.warning("Cannot resume BGM: no BGM is loaded.");
-                return;
-            }
-
-            if (bgmClip.isRunning()) {
-                logger.info("BGM is already playing.");
-                return;
-            }
-            try {
-                bgmClip.loop(Clip.LOOP_CONTINUOUSLY);
-            } catch (Exception e) {
-                logger.warning("Cannot resume BGM: " + e);
-            }
+        try {
+            bgmBus.setPaused(false);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to resume BGM: " + e, e);
         }
     }
 
@@ -166,88 +138,40 @@ public class AudioManager {
      * Plays the specified sound effect once.
      * Multiple sound effects can play simultaneously.
      * Each playback receives a separate ID.
-     * Finished clips are automatically removed and closed.
+     * Finished playbacks are automatically removed by the bus during sample collection.
      * Playback failures are logged.
-     * Use 16-bit PCM WAV resources for compatibility.
+     * Source WAV resources are converted to the mixer's 44.1 kHz, 16-bit signed
+     * stereo PCM format by the cache; 48 kHz and mono sources are supported.
      *
      * @param path the resource path relative to the classpath root,
      *             without a leading slash or the res directory prefix
      * @return the playback ID, or -1 if playback fails
      */
     public static int playSFX(String path) {
-        Clip newClip = null;
-        int id = -1;
-        boolean registered = false;
-
+        initialize();
+        if (!initialized) return -1;
         try {
-            if (path == null || path.trim().isEmpty()) {
-                logger.warning("SFX path must not be empty.");
-                return -1;
-            }
-
-            AudioCache.AudioResource resource = audioCache.getAudioData(path);
-            if (resource == null) return -1;
-
-            newClip = AudioSystem.getClip();
-            newClip.open(resource.format, resource.data, 0, resource.data.length);
-
-            /* for thread-safe */
-            synchronized (SFX_MUTEX) {
-                id = nextSFXId++;
-                final int tid = id;
-                newClip.addLineListener(new LineListener() {
-                    @Override
-                    public void update(LineEvent event) {
-                        if (event.getType() != LineEvent.Type.STOP) return;
-
-                        Clip finishedClip;
-
-                        synchronized (SFX_MUTEX) {
-                            finishedClip = sfxClips.remove(tid);
-                        }
-
-                        releaseClip(finishedClip);
-                    }
-                });
-
-                sfxClips.put(id, newClip);
-                registered = true;
-                applyVolume(newClip, sfxVolume);
-                newClip.start();
-            }
-
-            return id;
+            return sfxBus.play(audioCache.getAudioData(path));
         } catch (Exception e) {
-            if (registered) {
-                stopSFX(id);
-            } else if (newClip != null) {
-                releaseClip(newClip);
-            }
-            logger.warning("Failed to play SFX: " + path + " / " + e);
-            return -1;
+            logger.log(Level.WARNING, "Failed to play SFX [path=" + path + "]: " + e, e);
         }
+        return -1;
     }
 
     /**
-     * Stops the specified sound effect and releases its audio resources.
+     * Stops the specified sound effect by removing its playback from the bus.
+     * Cached audio sample data remains available for subsequent playback.
      * If the ID is unknown or already completed, logs a warning
      * and returns without stopping any other sound effect.
      *
      * @param id the playback ID returned by playSFX
      */
     public static void stopSFX(int id) {
-        Clip clip;
-
-        synchronized (SFX_MUTEX) {
-            clip = sfxClips.remove(id);
+        try {
+            sfxBus.stop(id);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to stop SFX [id=" + id + "]: " + e, e);
         }
-
-        if (clip == null) {
-            logger.info("No active SFX found. ID: " + id);
-            return;
-        }
-
-        releaseClip(clip);
     }
 
     /**
@@ -257,14 +181,10 @@ public class AudioManager {
      * @param vol the volume level, from 0 to 100
      */
     public static void setBGMVolume(int vol) {
-        if (vol < 0 || vol > 100) {
-            logger.warning("Volume must be an integer between 0 and 100.");
-            return;
-        }
-
-        synchronized (BGM_MUTEX) {
-            bgmVolume = vol;
-            applyVolume(bgmClip, vol);
+        try {
+            bgmBus.setVolume(vol);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to set BGM volume [volume=" + vol + "]: " + e, e);
         }
     }
 
@@ -275,15 +195,10 @@ public class AudioManager {
      * @param vol the volume level, from 0 to 100
      */
     public static void setSFXVolume(int vol) {
-        if (vol < 0 || vol > 100) {
-            logger.warning("Volume must be an integer between 0 and 100.");
-            return;
-        }
-
-        synchronized (SFX_MUTEX) {
-            sfxVolume = vol;
-            for (Clip clip : sfxClips.values())
-                applyVolume(clip, vol);
+        try {
+            sfxBus.setVolume(vol);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to set SFX volume [volume=" + vol + "]: " + e, e);
         }
     }
 
@@ -293,9 +208,12 @@ public class AudioManager {
      * @return the BGM volume level, from 0 to 100
      */
     public static int getBGMVolume() {
-        synchronized (BGM_MUTEX) {
-            return bgmVolume;
+        try {
+            return bgmBus.getVolume();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to get BGM volume; returning default 50: " + e, e);
         }
+        return 50;
     }
 
     /**
@@ -304,38 +222,12 @@ public class AudioManager {
      * @return the SFX volume level, from 0 to 100
      */
     public static int getSFXVolume() {
-        synchronized (SFX_MUTEX) {
-            return sfxVolume;
-        }
-    }
-
-    /**
-     * Applies the specified volume and global mute setting to an open clip.
-     * Muting uses the minimum supported gain.
-     *
-     * @param clip the clip to update
-     * @param vol the volume level, from 0 to 100
-     */
-    private static void applyVolume(Clip clip, int vol) {
         try {
-            if (clip == null || !clip.isOpen()) return;
-
-            if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                logger.warning("Volume control is not supported.");
-                return;
-            }
-
-            if (muted) vol = 0;
-
-            FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-
-            float db = vol == 0 ? gain.getMinimum() : (float) (20.0 * Math.log10(vol / 50.0));
-
-            db = Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), db));
-            gain.setValue(db);
+            return sfxBus.getVolume();
         } catch (Exception e) {
-            logger.warning("Cannot apply volume: " + e);
+            logger.log(Level.WARNING, "Failed to get SFX volume; returning default 50: " + e, e);
         }
+        return 50;
     }
 
     /**
@@ -344,16 +236,12 @@ public class AudioManager {
      * @param value true to mute audio, false to restore audio
      */
     public static synchronized void setMuted(boolean value) {
-        muted = value;
-
-        synchronized (BGM_MUTEX) {
-            applyVolume(bgmClip, bgmVolume);
-        }
-
-        synchronized (SFX_MUTEX) {
-            for (Clip clip : sfxClips.values()) {
-                applyVolume(clip, sfxVolume);
-            }
+        try {
+            bgmBus.setMuted(value);
+            sfxBus.setMuted(value);
+            muted = value;
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to set global mute [muted=" + value + "]: " + e, e);
         }
     }
 
@@ -362,29 +250,7 @@ public class AudioManager {
      *
      * @return true if muting is enabled, otherwise false
      */
-    public static boolean isMuted() {
+    public static synchronized boolean isMuted() {
         return muted;
-    }
-
-    /**
-     * Stops and closes the specified clip, logging failures without propagating them.
-     * Closing is attempted even if stopping fails. A null clip is ignored.
-     *
-     * @param clip the clip to release, or null
-     */
-    private static void releaseClip(Clip clip) {
-        if (clip == null) return;
-
-        try {
-            clip.stop();
-        } catch (Exception e) {
-            logger.warning("Failed to stop audio clip: " + e);
-        }
-
-        try {
-            clip.close();
-        } catch (Exception e) {
-            logger.warning("Failed to close audio clip: " + e);
-        }
     }
 }

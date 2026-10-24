@@ -14,9 +14,9 @@ repositories {
 }
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
+    // Use Gradle's JDK for compilation and execution, targeting Java 17.
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 jacoco {
@@ -46,7 +46,15 @@ sourceSets {
     }
     test {
         java.srcDirs = ['test']
-        resources.srcDirs = []
+        resources.srcDirs = ['test']
+        resources.include 'level/fixtures/*.json'
+    }
+}
+
+tasks.named('processTestResources') {
+    from('examples/levels') {
+        include '*.json'
+        into 'examples/levels'
     }
 }
 
@@ -107,19 +115,33 @@ def smokeTestClasses = [
     'PlayerStatusExtraLifeTest',
     'engine.CooldownVarianceTest',
     'engine.CoreDifficultySettingsTest',
+    'entity.BossDefeatTest',
+    'entity.BossPhaseTest',
     'entity.BulletOwnershipTest',
     'entity.BurstCancellationTest',
+    'entity.EnemyShootingCooldownTest',
+    'entity.FormationMovementSpeedTest',
+    'entity.FormationSmoothnessTest',
     'entity.PlayerStatusEventTest',
+    'entity.PlayerStatusShieldDurationTest',
     'entity.PlayerStatusShieldTest',
     'entity.PlayerStatusSlowDebuffTest',
     'level.LevelModelTest',
     'records.GameplayIntegrationTest',
     'records.RecordsSmokeTest',
+    'screen.BossKillScoreTest',
+    'screen.BossStageClearTest',
+    'screen.BossTypeByLevelTest',
     'screen.BulletCleanupTest',
+    'screen.FallingObstacleIntegrationTest',
     'screen.GameScreenMovementTest',
     'screen.GameScreenWavesTest',
     'screen.InfiniteGameScreenControlsTest',
+    'screen.LevelCompletedEventTest',
     'screen.PlayerDamagePathTest',
+    'screen.ShipCustomizationAppliedTest',
+    'screen.ShipShieldRestrictionTest',
+    'screen.StageFailureTest',
     'vfx.IconTest'
 ]
 
@@ -129,13 +151,10 @@ def smokeTasks = smokeTestClasses.collect { className ->
         coveragePlugin.applyTo(smokeTask)
         def coverage = extensions.getByType(JacocoTaskExtension)
         group = 'verification'
-        description = "Runs ${className} with Java 17 and assertions enabled."
+        description = "Runs ${className} with assertions enabled."
         dependsOn tasks.named('testClasses')
         classpath = sourceSets.test.runtimeClasspath
         mainClass = className
-        javaLauncher = javaToolchains.launcherFor {
-            languageVersion = JavaLanguageVersion.of(17)
-        }
         enableAssertions = true
         systemProperty 'java.awt.headless', 'true'
         systemProperty 'file.encoding', 'UTF-8'

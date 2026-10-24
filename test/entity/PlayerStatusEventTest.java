@@ -16,7 +16,7 @@ public final class PlayerStatusEventTest {
 		private long now;
 
 		private FakeClockStatus(final int initialLives, final int maxLives) {
-			super(initialLives, maxLives);
+			super(initialLives, maxLives, true);
 			this.now = 1000000L;
 		}
 
@@ -104,6 +104,11 @@ public final class PlayerStatusEventTest {
 		checkShieldExpiryBeforeDamage();
 		checkShieldExpiryBeforeNewShield();
 		checkClearShieldEvent();
+		checkSlowStartRefreshAndExpiry();
+		checkSlowGettersAreReadOnlyAtExpiry();
+		checkSlowBlockAndShieldClear();
+		checkSlowEndsOnDeath();
+		checkExistingEventsSnapshotSlowState();
 		checkIgnoredChangesAreSilent();
 		checkEventPayload();
 		checkListenerRegistration();
@@ -252,6 +257,172 @@ public final class PlayerStatusEventTest {
 		recorder.clear();
 		status.clearShield();
 		checkKinds(recorder, "");
+	}
+
+	/** Slow lifecycle events carry one immutable state snapshot each. */
+	private static void checkSlowStartRefreshAndExpiry() {
+		FakeClockStatus status = new FakeClockStatus(3, 3);
+		Recorder recorder = new Recorder();
+		status.addListener(recorder);
+		Ship ship = new Ship(100, 100);
+
+		check(status.applySlow(ship)
+				== PlayerStatus.SlowApplicationResult.STARTED,
+				"The initial slow starts");
+		checkKinds(recorder, "SLOW_STARTED");
+		PlayerStatusEvent started = recorder.single();
+		check(started.isSlowActive()
+				&& started.getSlowRemainingMillis()
+						== PlayerStatus.getSlowDuration(),
+				"SLOW_STARTED carries the active state and full duration");
+		check(started.getLives() == 3 && started.getMaxLives() == 3
+				&& started.getShieldRemainingMillis() == 0,
+				"Slow events retain the existing life and shield snapshot");
+
+		recorder.clear();
+		status.advance(1000);
+		check(status.applySlow(ship)
+				== PlayerStatus.SlowApplicationResult.REFRESHED,
+				"A second slow refreshes the first");
+		checkKinds(recorder, "SLOW_REFRESHED");
+		check(recorder.single().isSlowActive()
+				&& recorder.single().getSlowRemainingMillis()
+						== PlayerStatus.getSlowDuration(),
+				"SLOW_REFRESHED carries the restarted duration");
+
+		recorder.clear();
+		status.advance(PlayerStatus.getSlowDuration() - 1);
+		status.update();
+		checkKinds(recorder, "");
+		status.advance(1);
+		status.update();
+		checkKinds(recorder, "SLOW_ENDED");
+		PlayerStatusEvent ended = recorder.single();
+		check(!ended.isSlowActive()
+				&& ended.getSlowRemainingMillis() == 0,
+				"SLOW_ENDED records an inactive state and zero time");
+
+		recorder.clear();
+		status.update();
+		checkKinds(recorder, "");
+	}
+
+	/** Reading expired slow state must not perform its transition or publish. */
+	private static void checkSlowGettersAreReadOnlyAtExpiry() {
+		FakeClockStatus status = new FakeClockStatus(3, 3);
+		Recorder recorder = new Recorder();
+		Ship ship = new Ship(100, 100);
+		status.addListener(recorder);
+		status.applySlow(ship);
+		recorder.clear();
+
+		status.advance(PlayerStatus.getSlowDuration());
+		check(!status.isSlowActive(),
+				"The slow getter reports inactive at the expiry boundary");
+		check(status.getSlowRemainingMillis() == 0,
+				"The remaining-time getter reports zero at expiry");
+		checkKinds(recorder, "");
+		ship.moveRight();
+		check(ship.getPositionX() == 101,
+				"A getter does not clear the ship's slow modifier");
+
+		status.update();
+		checkKinds(recorder, "SLOW_ENDED");
+		ship.moveRight();
+		check(ship.getPositionX() == 103,
+				"The update transition restores normal movement");
+		status.update();
+		checkKinds(recorder, "SLOW_ENDED");
+	}
+
+	/** A shield blocks new slow events and clears an active slow once. */
+	private static void checkSlowBlockAndShieldClear() {
+		FakeClockStatus status = new FakeClockStatus(3, 3);
+		Recorder recorder = new Recorder();
+		status.addListener(recorder);
+		Ship ship = new Ship(100, 100);
+
+		status.activateShield();
+		recorder.clear();
+		check(status.applySlow(ship)
+				== PlayerStatus.SlowApplicationResult.BLOCKED_BY_SHIELD,
+				"The active shield blocks a new slow");
+		checkKinds(recorder, "");
+
+		status.clearShield();
+		status.applySlow(ship);
+		recorder.clear();
+		status.activateShield();
+		checkKinds(recorder, "SHIELD_STARTED");
+		recorder.clear();
+		status.update();
+		checkKinds(recorder, "SLOW_ENDED");
+		check(!recorder.single().isSlowActive()
+				&& recorder.single().getSlowRemainingMillis() == 0,
+				"Shield-cleared slow reports its ended state");
+
+		recorder.clear();
+		status.update();
+		checkKinds(recorder, "");
+	}
+
+	/** Losing the last life immediately ends slow after the damage event. */
+	private static void checkSlowEndsOnDeath() {
+		FakeClockStatus status = new FakeClockStatus(1, 3);
+		Recorder recorder = new Recorder();
+		status.addListener(recorder);
+		Ship ship = new Ship(100, 100);
+		status.applySlow(ship);
+		recorder.clear();
+
+		check(status.takeDamage(1), "The last life is lost");
+		checkKinds(recorder, "DAMAGE_TAKEN,SLOW_ENDED");
+		check(!recorder.events.get(1).isSlowActive()
+				&& recorder.events.get(1).getSlowRemainingMillis() == 0,
+				"Death ends slow with a zero-duration snapshot");
+		recorder.clear();
+		status.update();
+		checkKinds(recorder, "");
+	}
+
+	/** Existing event kinds also carry the slow state at their creation time. */
+	private static void checkExistingEventsSnapshotSlowState() {
+		FakeClockStatus status = new FakeClockStatus(2, 4);
+		Recorder recorder = new Recorder();
+		Ship ship = new Ship(100, 100);
+		status.addListener(recorder);
+		status.applySlow(ship);
+		recorder.clear();
+
+		status.advance(500);
+		check(status.gainLife(), "A life is gained while slow is active");
+		checkKinds(recorder, "LIFE_GAINED");
+		checkSlowSnapshot(recorder.single(), 1500,
+				"LIFE_GAINED retains the active slow snapshot");
+
+		recorder.clear();
+		check(status.takeDamage(1), "Damage is accepted while slow is active");
+		checkKinds(recorder, "DAMAGE_TAKEN");
+		checkSlowSnapshot(recorder.single(), 1500,
+				"DAMAGE_TAKEN retains the active slow snapshot");
+
+		recorder.clear();
+		status.activateShield();
+		checkKinds(recorder, "SHIELD_STARTED");
+		checkSlowSnapshot(recorder.single(), 0,
+				"SHIELD_STARTED snapshots slow as inactive while shielded");
+
+		recorder.clear();
+		status.update();
+		checkKinds(recorder, "SLOW_ENDED");
+		checkSlowSnapshot(recorder.single(), 0,
+				"SLOW_ENDED always snapshots inactive with zero time");
+	}
+
+	private static void checkSlowSnapshot(final PlayerStatusEvent event,
+			final int expectedRemaining, final String message) {
+		check(event.isSlowActive() == (expectedRemaining > 0)
+				&& event.getSlowRemainingMillis() == expectedRemaining, message);
 	}
 
 	/** Calls that change nothing send nothing. */

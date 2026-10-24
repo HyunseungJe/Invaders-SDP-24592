@@ -31,27 +31,37 @@ building and running `engine.Core`.
 
 **R1. Selectable player ships with distinct stats.**
 Three ships are selectable before the game starts: Standard (speed 2, 750 ms between
-shots, 3 lives), Speedster (speed 4, 400 ms, 2 lives) and Heavy Tank (speed 1,
+shots, 4 lives), Speedster (speed 4, 400 ms, 3 lives) and Heavy Tank (speed 1,
 1000 ms, 5 lives, shield-capable).
 *Complete when* the selection screen offers all three, the chosen ship carries its own
 speed, fire interval and life count into the game screen, and only the shield-capable
 ship can hold a shield.
 
-**R2. Enemy ships using several attack methods.**
-Three projectile types — Normal (one shot), Rapid (two shots 100 ms apart) and Multi
-(three shots in one volley) — and a shooting cooldown held per enemy ship instead of
-per formation, so that enemies fire independently of each other.
-*Complete when* each projectile type is observable in play, and two enemies in the same
-formation can fire at different times.
+**R2. Player projectile types and aimed enemy fire.**
+Three projectile types on the player's side, one per selectable ship: Normal (one shot),
+Rapid (two shots 100 ms apart) and Multi (three shots in one spreading volley). Enemies
+keep a single kind of bullet. What varies on their side is who fires and where: the
+formation holds one shooting cooldown that decides when a shot is taken, each bottom-row
+enemy holds its own cooldown that decides which of them is eligible to take it, and the
+shot is aimed at the player's position rather than straight down. Several attack methods
+per enemy are out of scope.
+*Complete when* each of the three projectile types is observable from the ship it belongs
+to, several enemies in one formation take turns firing — the shooter is drawn at random
+from those whose own cooldown is ready, so the same enemy may well fire twice in a row,
+and does so every time only one is left in the bottom row — and an enemy bullet visibly
+travels at an angle towards the player instead of vertically.
 
 **R3. Enemy ships with distinct movement trajectories.**
-At least two movement patterns in addition to the baseline formation sweep, with
-irregular tempo and direction rather than a fixed step.
-*Complete when* two formations of the same size visibly follow different paths, and
-neither of them repeats a constant step interval.
+At least two movement patterns in addition to the baseline formation sweep. The interval
+between steps is deliberately fixed so that a path reads as a line rather than a series
+of jumps; the pace is carried by the step length, which grows on the harder stage
+settings and as enemies are defeated.
+*Complete when* two formations of the same size visibly follow different paths, and a
+formation visibly covers more ground per second on a later stage and as it is thinned
+out, without its motion breaking into jumps.
 
 **R4. Bosses with difficulty levels and varied projectile attacks.**
-Two boss types (1000 HP slow, 800 HP fast), each with three phases driven by remaining
+Two boss types (850 HP slow, 800 HP fast), each with three phases driven by remaining
 HP and three attack patterns (single shot, multi shot, spread shot), plus one special
 attack reserved for the final phase. Bosses appear on stages 3, 5 and 7.
 *Complete when* a boss stage cannot be cleared while its boss is alive, the attack
@@ -59,12 +69,20 @@ pattern changes as the boss loses HP, and a defeated boss stops moving and attac
 and does not respawn.
 
 **R5. Bonus and penalty elements.**
-Bonus elements: a shield that absorbs all damage for 3 seconds, and an extra life.
-Penalty element: an obstacle that blocks player movement or fire.
-*Complete when* each element can be obtained or encountered in play, the shield blocks
-every hit taken while it is up and expires on its own after 3 seconds rather than on
-the first hit, and the penalty element has an effect the player can observe without
-reading the log.
+Bonus element: an extra life, granted on entry to every third stage while the chosen
+ship is still below its own maximum. A timed shield of our own is out of scope as a
+bonus element — the only shield a player can pick up in play is the Energy Shield
+item, which belongs to another team. The 3-second shield on PlayerStatus is still in
+the code, but only as a debug-only facility: it is offered to shield-capable ships
+alone, the F2 debug key is its only source, and the one way it touches play is that it
+blocks the obstacle slow while it is up. Either removing it or giving it an in-game
+source is left to a follow-up issue.
+Penalty element: an obstacle that falls through the play area and halves the player's
+movement speed for 2 seconds on contact. It blocks nothing — it deals no damage, costs
+no life and leaves firing untouched.
+*Complete when* the life count rises by one on entry to a stage that grants it and never
+passes the chosen ship's maximum, and a touched obstacle visibly slows the ship sideways
+for about two seconds without costing a life or interrupting its fire.
 
 ## Dependencies on Other Teams
 The items below are the support our own requirements depend on, and that we therefore

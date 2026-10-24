@@ -26,9 +26,9 @@ public class Boss extends Entity {
     /** Kinds of bosses and their base values. */
     public enum BossType {
         /** Slow boss. */
-        BOSS_A(1000, 1, 0.6, 0.3),
+        BOSS_A(850, 1, 0.5, 0.25, 500),
         /** Fast boss, gets stronger earlier. */
-        BOSS_B(800, 3, 0.7, 0.4);
+        BOSS_B(800, 3, 0.7, 0.4, 800);
 
         /** Maximum health of this kind of boss. */
         private final int maxHealth;
@@ -38,13 +38,17 @@ public class Boss extends Entity {
         private final double phase2Threshold;
         /** Phase 3 starts below this share of max health. */
         private final double phase3Threshold;
+        /** Score given to the player for defeating this boss (temporary). */
+        private final int pointValue;
 
         BossType(final int maxHealth, final int speed,
-                 final double phase2Threshold, final double phase3Threshold) {
+                 final double phase2Threshold, final double phase3Threshold,
+                 final int pointValue) {
             this.maxHealth = maxHealth;
             this.speed = speed;
             this.phase2Threshold = phase2Threshold;
             this.phase3Threshold = phase3Threshold;
+            this.pointValue = pointValue;
         }
 
         public int getMaxHealth() {
@@ -61,6 +65,11 @@ public class Boss extends Entity {
 
         public double getPhase3Threshold() {
             return this.phase3Threshold;
+        }
+
+        /** @return Score given for defeating this kind of boss. */
+        public int getPointValue() {
+            return this.pointValue;
         }
     }
 

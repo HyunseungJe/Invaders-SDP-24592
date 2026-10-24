@@ -135,7 +135,7 @@ public final class BossAttackSystem {
         this.phase = newPhase;
         this.pendingSpecial = null;
         restartAttackCooldown();
-        // The special cooldown starts when its phase begins (PRD 2.5).
+        // The first special attack of the phase is used right away (PRD 2.5).
         if (!specialWasEnabled)
             markSpecialDueIfEnabled();
     }

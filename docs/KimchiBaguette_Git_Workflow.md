@@ -8,9 +8,12 @@ reaches `main`.
 
 ### Why GitHub Flow fits this project
 
-- **`main` must always be runnable.** This repository has no automated test
-  suite, so we verify a change by building and running `engine.Core` by hand.
-  Keeping one always-working branch makes that verification meaningful.
+- **`main` must always be runnable.** There are 17 test classes under
+  `tests/`, but they are plain `main` methods run by hand rather than a JUnit
+  suite on CI, and they cover calculations rather than whole systems. Nothing
+  runs them for us when a branch is pushed, so we still verify a change by
+  building and running `engine.Core`. Keeping one always-working branch makes
+  that verification meaningful.
 - **Code review is our only quality gate.** Because there are no tests to catch
   regressions, the mandatory PR review is what protects `main`. GitHub Flow puts
   that review at the centre of the process rather than treating it as optional.
@@ -37,7 +40,7 @@ reaches `main`.
 | **Forking Workflow** | Each member would work in a personal fork and open cross-fork PRs, which means every member maintains an extra remote and keeps it in sync. All nine of us already have write access to the team repository, so the extra layer buys us nothing and is a common source of confusion for members new to Git. A plain branch in one shared repository is simpler. |
 | **Gitflow** | It adds `develop`, `release`, `hotfix` and `support` branches on top of feature branches. We ship no versioned releases and run nothing in production during one semester, so there is no release to stabilize and no hotfix to back-port. Five long-lived branch types would be pure ceremony. |
 | **GitLab Flow** | It layers environment or release branches (staging, production) on top of GitHub Flow. The game runs locally from IntelliJ and we have no deployment environments, so those branches would always be empty. |
-| **Trunk-Based Development** | It expects every developer to merge into the trunk at least daily, usually behind feature flags, and it depends on strong automated tests to keep the trunk green. We have no test suite to catch a broken trunk, and our members are split between France and Korea with different class schedules, so a daily merge cadence is not realistic. |
+| **Trunk-Based Development** | It expects every developer to merge into the trunk at least daily, usually behind feature flags, and it depends on strong automated tests to keep the trunk green. Nothing runs our test classes automatically, so nothing would catch a broken trunk, and our members are split between France and Korea with different class schedules, so a daily merge cadence is not realistic. |
 | **Hierarchical Integration** | Changes pass through lieutenants before reaching a maintainer. It is built for very large numbers of contributors who do not know each other. With nine teammates it would only add waiting time and make the integrator a bottleneck. |
 
 ### Repositories
@@ -186,6 +189,38 @@ Merging multiple working commits into a single commit and reflecting it in the `
 
 - It makes it easy to view the features worked on by team members as a single unit.
 
+### Exception: pull requests that sync the shared course repository
+
+A PR whose purpose is to merge the shared course repository (`fork`) into our
+`main` is the one exception: it is merged with **"Create a merge commit"**, never
+squashed. A squash keeps only the first parent, so the upstream commit stops
+being an ancestor of `main`, and once that ancestry is gone git picks a merge
+base from before the sync — which means every later sync asks us to re-resolve
+work that is already in.
+
+We learned this the hard way. PR #21 was a sync and it was squashed, exactly as
+the rule above asks; the resulting commit `9bd8548` has a single parent, and
+`main` went on reporting 345 commits behind the course repository over content it
+already contained. PR #23 recorded the missing parent with `git merge -s ours`,
+which writes the parent link and leaves the tree byte-identical. The difference
+it made to the syncs that followed is the whole argument:
+
+| Sync PR | Ancestry | Conflicting files | Conflicting lines |
+| --- | --- | ---: | ---: |
+| #21 | broken by the squash | 5 | ~1,500 |
+| #24 | restored by #23 | 3 | 123 |
+| #37 | restored by #23 | 0 | 0 |
+| #43 | restored by #23 | 0 | 0 |
+
+Syncing often is the other half of this — 35 commits merge themselves where 345
+do not — but no amount of frequency helps while the ancestry is broken.
+
+Nothing enforces the exception for us. The repository allows both squash merges
+and merge commits, so the green button offers both and only the reviewer can
+catch the mistake. Sync PRs therefore say which button to use at the top of their
+description, and the reviewer should check that before merging. The exception is
+narrow: an ordinary `feature/`, `fix/` or `docs/` PR is still squashed.
+
 ### Conflict Resolution
 
 Most of our work lands in a small number of shared files, above all
@@ -226,8 +261,11 @@ flowchart TD
     G --> H[Open Pull Request]
     H --> I[Code Review]
     I --> J{Approved?}
-    J -->|Yes| K[Squash & Merge]
+    J -->|Yes| P{Upstream sync PR?}
+    P -->|No| K[Squash & Merge]
+    P -->|Yes| Q[Create a merge commit]
     K --> L[main]
+    Q --> L
     L --> M[Delete feature/fix branch]
     J -->|No| N[Changes requested]
     N --> O[Update branch]

@@ -2,10 +2,10 @@ package audio;
 
 import engine.Core;
 
-import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -14,7 +14,8 @@ import java.util.logging.Logger;
 /**
  * Caches audio formats and sample data by classpath resource path.
  * Resources are loaded on first request and reused for subsequent playback.
- * Cache access is synchronized. Use PCM WAV resources for compatibility.
+ * Source audio is converted to the mixer's PCM format once when first loaded;
+ * source files are not modified. Cache access is synchronized.
  */
 public class AudioCache {
 
@@ -60,16 +61,17 @@ public class AudioCache {
         }
 
         try (AudioInputStream stream = AudioSystem.getAudioInputStream(resource)) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            int frameSize = stream.getFormat().getFrameSize();
-            byte[] buffer = new byte[frameSize * 1024];
-            int count;
-
-            while ((count = stream.read(buffer)) != -1) {
-                output.write(buffer, 0, count);
+            if (AudioMixer.FORMAT.matches(stream.getFormat())) {
+                return readPcm(stream);
             }
 
-            return new AudioResource(stream.getFormat(), output.toByteArray());
+            if (!AudioSystem.isConversionSupported(AudioMixer.FORMAT, stream.getFormat())) {
+                throw new IOException("Cannot convert audio format: " + stream.getFormat());
+            }
+            try (AudioInputStream converted =
+                    AudioSystem.getAudioInputStream(AudioMixer.FORMAT, stream)) {
+                return readPcm(converted);
+            }
         } catch (Exception e) {
             logger.warning("Failed to read audio file: " + path + " / " + e);
         }
@@ -77,28 +79,19 @@ public class AudioCache {
         return null;
     }
 
-    /**
-     * Holds the audio format and sample data used to open a playback clip.
-     * The sample array is shared with the cache and must not be modified.
-     */
-    public static final class AudioResource {
-        /** Format describing the cached audio samples. */
-        final AudioFormat format;
-
-        /** Audio sample bytes, excluding the source file's container headers. */
-        final byte[] data;
-
-        /**
-         * Creates an audio resource using the supplied format and sample array.
-         * The array is stored directly without copying.
-         *
-         * @param format the format of the audio samples
-         * @param data the audio sample bytes
-         */
-        AudioResource(AudioFormat format, byte[] data) {
-            this.format = format;
-            this.data = data;
+    /** Reads complete mixer frames from decoded or resampled output. */
+    private static AudioResource readPcm(AudioInputStream stream) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        int frameSize = AudioMixer.FORMAT.getFrameSize();
+        byte[] buffer = new byte[frameSize * 1024];
+        int count;
+        while ((count = stream.read(buffer)) != -1) {
+            output.write(buffer, 0, count);
         }
+        byte[] data = output.toByteArray();
+        if (data.length == 0 || data.length % frameSize != 0) {
+            throw new IOException("Audio must contain complete, non-empty PCM frames");
+        }
+        return new AudioResource(AudioMixer.FORMAT, data);
     }
-
 }

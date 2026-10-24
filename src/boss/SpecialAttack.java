@@ -44,7 +44,8 @@ public abstract class SpecialAttack {
         this.name = name;
         this.windupMilliseconds = Math.max(0, windupMilliseconds);
         this.cooldown = Core.getCooldown(cooldownMilliseconds);
-        // Starts counting now, so the first use also waits for the cooldown.
+        // Starts counting now. The first use in a phase does not wait for
+        // it (see BossAttackSystem); later uses do.
         this.cooldown.reset();
     }
 

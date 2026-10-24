@@ -1,5 +1,8 @@
 package entity;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Deterministic checks for the B5 player slow debuff. */
 public final class PlayerStatusSlowDebuffTest {
 
@@ -7,7 +10,7 @@ public final class PlayerStatusSlowDebuffTest {
 		private long now = 1000000L;
 
 		private FakeClockStatus(final int lives, final int maxLives) {
-			super(lives, maxLives);
+			super(lives, maxLives, true);
 		}
 
 		@Override
@@ -36,7 +39,43 @@ public final class PlayerStatusSlowDebuffTest {
 		checkDeadPlayerAndBaseSpeedChange();
 		checkCurrentSpeedOverrideAndBaseRestore();
 		checkShootingStatsAreUntouched();
+		checkSlowEventsMatchApplicationResults();
 		System.out.println("Player slow debuff checks passed.");
+	}
+
+	private static void checkSlowEventsMatchApplicationResults() {
+		FakeClockStatus status = new FakeClockStatus(3, 3);
+		final List<PlayerStatusEvent> events =
+				new ArrayList<PlayerStatusEvent>();
+		status.addListener(new PlayerStatusListener() {
+			@Override
+			public void onPlayerStatusEvent(final PlayerStatusEvent event) {
+				events.add(event);
+			}
+		});
+		Ship ship = new Ship(100, 100);
+
+		check(status.applySlow(ship)
+				== PlayerStatus.SlowApplicationResult.STARTED
+				&& events.size() == 1
+				&& events.get(0).getType()
+						== PlayerStatusEvent.Type.SLOW_STARTED,
+				"Starting the slow publishes one matching event");
+		check(status.applySlow(ship)
+				== PlayerStatus.SlowApplicationResult.REFRESHED
+				&& events.size() == 2
+				&& events.get(1).getType()
+						== PlayerStatusEvent.Type.SLOW_REFRESHED,
+				"Refreshing the slow publishes one matching event");
+		status.advance(PlayerStatus.getSlowDuration());
+		status.update();
+		check(events.size() == 3
+				&& events.get(2).getType()
+						== PlayerStatusEvent.Type.SLOW_ENDED,
+				"Expiring the slow publishes one end event");
+		status.update();
+		check(events.size() == 3,
+				"Repeated updates do not duplicate the end event");
 	}
 
 	private static void checkShipMovementRates() {

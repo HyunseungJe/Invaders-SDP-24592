@@ -1,6 +1,7 @@
 package boss;
 
 import entity.Boss;
+import event.GameplayEvent;
 
 /**
  * Boss event sent to other systems (PRD 6). Every event carries the boss
@@ -8,7 +9,7 @@ import entity.Boss;
  *
  * Boss Developer 2.
  */
-public final class BossEvent {
+public final class BossEvent implements GameplayEvent {
 
     /** Kinds of boss events. */
     public enum Type {

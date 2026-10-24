@@ -13,7 +13,7 @@ public final class PlayerStatusShieldTest {
 		private long now;
 
 		private FakeClockStatus(final int initialLives, final int maxLives) {
-			super(initialLives, maxLives);
+			super(initialLives, maxLives, true);
 			this.now = 1000000L;
 		}
 
@@ -157,7 +157,7 @@ public final class PlayerStatusShieldTest {
 
 	/** The real game clock is wired up the same way. */
 	private static void checkRealClockShield() {
-		PlayerStatus status = new PlayerStatus(3, 3);
+		PlayerStatus status = new PlayerStatus(3, 3, true);
 		status.activateShield();
 		int remaining = status.getShieldRemainingMillis();
 		check(remaining > 0 && remaining <= PlayerStatus.getShieldDuration(),

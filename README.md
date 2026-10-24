@@ -32,7 +32,7 @@ Register your team by adding one row to the table below and submitting the chang
 
 ## Development
 - Recommended IDE: IntelliJ IDEA
-- Runtime requirement: Java 17 or later. Use JDK 17 for development.
+- Runtime requirement: Java 17 or later. Development JDKs: 17, 21, or 25; keep the language level at Java 17.
 - Before implementing a feature, build and run the baseline game and analyze the relevant source code.
 
 To run the baseline in IntelliJ IDEA, mark `src` as **Sources Root** and `res` as **Resources Root**, then run `engine.Core`. The resource directory must be on the runtime classpath: the game loads `graphics`, `scores`, and `font.ttf` from its root. Installing the font in your operating system does not make it available to the game.

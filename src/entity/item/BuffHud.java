@@ -1,6 +1,8 @@
 package entity.item;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -19,7 +21,13 @@ public final class BuffHud {
                                           final long nowMs) {
         List<Map.Entry<String, Long>> entries =
                 new ArrayList<Map.Entry<String, Long>>(remaining.entrySet());
-        entries.sort(Map.Entry.comparingByValue());
+        Collections.sort(entries, new Comparator<Map.Entry<String, Long>>() {
+            @Override
+            public int compare(final Map.Entry<String, Long> left,
+                               final Map.Entry<String, Long> right) {
+                return left.getValue().compareTo(right.getValue());
+            }
+        });
 
         List<String> lines = new ArrayList<String>();
         for (Map.Entry<String, Long> entry : entries) {

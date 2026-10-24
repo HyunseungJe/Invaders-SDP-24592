@@ -277,8 +277,10 @@ class ShopStartupTest {
             // Relative paths avoid Windows JDK 17 agent-option encoding issues in Korean paths.
             command.add(destination.replaceFirst(Matcher.quoteReplacement("destfile=" + childDestination)));
         }
+        // Match the UTF-8 decoder used to read the child process log.
         Collections.addAll(command, "-Djava.awt.headless=true",
-                "-Dfile.encoding=UTF-8", "-cp", classpath, ShopStartupTest.class.getName(),
+                "-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+                "-cp", classpath, ShopStartupTest.class.getName(),
                 temp.toString(), scenario);
         Process process = new ProcessBuilder(command)
                 .directory(temp.toFile()).redirectErrorStream(true).redirectOutput(log.toFile()).start();

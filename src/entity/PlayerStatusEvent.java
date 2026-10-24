@@ -26,7 +26,13 @@ public final class PlayerStatusEvent implements GameplayEvent {
 		 * restarts its full duration. */
 		SHIELD_REFRESHED("PlayerShieldRefreshed"),
 		/** The shield ran out, or was ended by hand. */
-		SHIELD_ENDED("PlayerShieldEnded");
+		SHIELD_ENDED("PlayerShieldEnded"),
+		/** A movement slow started. */
+		SLOW_STARTED("PlayerSlowStarted"),
+		/** An active movement slow was refreshed. */
+		SLOW_REFRESHED("PlayerSlowRefreshed"),
+		/** A movement slow ended or was cleared. */
+		SLOW_ENDED("PlayerSlowEnded");
 
 		/** Name of the event as written in the log. */
 		private final String eventName;
@@ -50,6 +56,10 @@ public final class PlayerStatusEvent implements GameplayEvent {
 	private final int shieldRemainingMillis;
 	/** Damage carried by the hit, for DAMAGE_TAKEN and DAMAGE_BLOCKED. */
 	private final int damageAmount;
+	/** Whether a slow was active at this event's snapshot. */
+	private final boolean slowActive;
+	/** Slow time left at this event's snapshot, in milliseconds. */
+	private final int slowRemainingMillis;
 
 	private PlayerStatusEvent(final Type type, final PlayerStatus status,
 			final int damageAmount) {
@@ -58,6 +68,11 @@ public final class PlayerStatusEvent implements GameplayEvent {
 		this.maxLives = status.getMaxLives();
 		this.shieldRemainingMillis = status.getShieldRemainingMillis();
 		this.damageAmount = damageAmount;
+		long now = status.currentTimeMillis();
+		this.slowActive = type != Type.SLOW_ENDED
+				&& status.isSlowActiveAt(now);
+		this.slowRemainingMillis = this.slowActive
+				? status.getSlowRemainingMillisAt(now) : 0;
 	}
 
 	static PlayerStatusEvent damageTaken(final PlayerStatus status,
@@ -84,6 +99,23 @@ public final class PlayerStatusEvent implements GameplayEvent {
 
 	static PlayerStatusEvent shieldEnded(final PlayerStatus status) {
 		return new PlayerStatusEvent(Type.SHIELD_ENDED, status, 0);
+	}
+
+	static PlayerStatusEvent slowStarted(final PlayerStatus status) {
+		return slowEvent(Type.SLOW_STARTED, status);
+	}
+
+	static PlayerStatusEvent slowRefreshed(final PlayerStatus status) {
+		return slowEvent(Type.SLOW_REFRESHED, status);
+	}
+
+	static PlayerStatusEvent slowEnded(final PlayerStatus status) {
+		return new PlayerStatusEvent(Type.SLOW_ENDED, status, 0);
+	}
+
+	private static PlayerStatusEvent slowEvent(final Type type,
+			final PlayerStatus status) {
+		return new PlayerStatusEvent(type, status, 0);
 	}
 
 	public Type getType() {
@@ -118,6 +150,22 @@ public final class PlayerStatusEvent implements GameplayEvent {
 	}
 
 	/**
+	 * @return Whether slow was active when this event was created, regardless
+	 *         of the event type. Always false for {@link Type#SLOW_ENDED}.
+	 */
+	public boolean isSlowActive() {
+		return this.slowActive;
+	}
+
+	/**
+	 * @return Slow time left at this event's snapshot, in milliseconds, or zero
+	 *         when slow was inactive or had ended.
+	 */
+	public int getSlowRemainingMillis() {
+		return this.slowRemainingMillis;
+	}
+
+	/**
 	 * @return Whether the player still has a life after the event. False only
 	 *         on the {@link Type#DAMAGE_TAKEN} that spent the last one.
 	 */
@@ -136,6 +184,9 @@ public final class PlayerStatusEvent implements GameplayEvent {
 		if (this.shieldRemainingMillis > 0)
 			text.append(", shield ").append(this.shieldRemainingMillis)
 					.append("ms");
+		if (this.slowActive)
+			text.append(", slow ").append(this.slowRemainingMillis)
+				.append("ms");
 		return text.append(']').toString();
 	}
 }

@@ -5,8 +5,8 @@ package entity;
  */
 public enum ShipType {
 
-    STANDARD("Standard Ship", 2, 750, 3, false),
-    SPEEDSTER("Speedster", 4, 400, 2, false),
+    STANDARD("Standard Ship", 2, 750, 4, false),
+    SPEEDSTER("Speedster", 4, 400, 3, false),
     TANK("Heavy Tank", 1, 1000, 5, true);
 
     /** Name displayed to the player. */
