@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 
 import screen.Screen;
 import hud.FloatingScoreHud;
+import currency.PermanentUpgrade;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
 import shop.ShopController.SaveStatus;
@@ -963,7 +964,7 @@ public final class DrawManager {
         String badge = owned ? "Owned" : "";
         drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-        drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, x + size / 2 - 10, y + 20);
+        drawShopProductIcon(product, x + size / 2, y + 18);
         drawShopText(product.getName(), x + 9, y + 60, 11,
                 selected ? Color.GREEN : Color.WHITE, size - 18);
         drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
@@ -971,6 +972,20 @@ public final class DrawManager {
         backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
         String price = owned ? "Unlocked" : product.getPrice() + " C";
         drawShopText(price, x + 9, y + size - 9, 11, owned ? Color.GRAY : Color.WHITE, size - 18);
+    }
+
+    private void drawShopProductIcon(ShopProduct product, int centerX, int y) {
+        PermanentUpgrade upgrade = PermanentUpgrade.forProduct(product.getId());
+        if (upgrade == null) {
+            drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, centerX - 10, y + 2);
+            return;
+        }
+        Icon icon = switch (upgrade) {
+        case HULL -> Icon.UPGRADE_HULL;
+        case ENGINE -> Icon.UPGRADE_ENGINE;
+        case RELOADER -> Icon.UPGRADE_RELOADER;
+        };
+        drawIcon(icon, centerX - icon.getWidth(), y, 2);
     }
 
     /** Neutral placeholders until content owners supply agreed product artwork. */
