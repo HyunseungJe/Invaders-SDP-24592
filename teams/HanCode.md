@@ -68,8 +68,8 @@ Currency System. Our team is responsible for managing the in-game currency econo
 
 | Area | Implemented components | Remaining integration |
 | --- | --- | --- |
-| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), Main Menu entry and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Agree on ship products and prices for the existing lower Unlocks row. |
+| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), Main Menu entry and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Agree on ship prices and access rules before enabling paid unlocks. |
 | Permanent upgrades | [Hull, Engine and Reloader](../docs/Permanent-Upgrades.md) replace the upper consumable-item row. Three purchase levels persist and apply to subsequent Campaign runs. | Review provisional prices and bonuses. |
 | Rewards | [CampaignRewards](../src/engine/CampaignRewards.java) connects Campaign clears to [RewardSystem](../src/currency/RewardSystem.java), shared assets, saving and retry handling. | Coordinate and connect enemy-type rewards. |
 
-The production catalog contains the three permanent stat upgrades. Existing lower-row unlock samples remain in tests and previews; ship access rules are unchanged. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.
+The production catalog contains the three permanent stat upgrades and lists all three ships as available without purchase. Default ship availability is not saved as ownership, and Hangar access rules are unchanged. Separate unlock samples remain in tests and previews. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.

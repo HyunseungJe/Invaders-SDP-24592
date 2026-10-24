@@ -3,6 +3,7 @@ package shop;
 import currency.PermanentUpgrade;
 import currency.PlayerAssetsState;
 import currency.ShopCatalog.Category;
+import entity.ShipType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +20,9 @@ public final class ShopProducts {
                         Category.UPGRADE, upgrade.getPrice(level),
                         description(upgrade, level), upgrade.getRequiredUnlockId(level)));
             }
+        }
+        for (ShipType ship : ShipType.values()) {
+            products.add(ShopProduct.ship(ship, true, 0));
         }
         return Collections.unmodifiableList(products);
     }

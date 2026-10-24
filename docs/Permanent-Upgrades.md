@@ -26,7 +26,7 @@ On macOS/Linux: `sh ./gradlew run`.
 2. Use Left/Right in the upper **Upgrades** row to select Hull, Engine or Reloader, then Space/Enter to buy the next level. Each new key press buys at most one level.
 3. Start a new Campaign to use the purchased bonuses. Exit and run the game again to check that purchased levels and the remaining balance are restored.
 
-The existing `shop.ShopPreview.main` test helper shows the lower-row samples (Unlock A, Ship B and Ship C) with an isolated temporary save. Sample purchases record ownership only; actual ship products, prices and Hangar access rules are unchanged.
+The lower **Unlocks** row lists Standard Ship, Speedster and Heavy Tank as available. Select them in Hangar; confirming their shop cards does not spend Credits or save a permanent unlock. Paid access remains subject to agreement with the ship team. The `shop.ShopPreview.main` helper retains separate sample unlocks for purchase testing with an isolated save.
 
 ## Integration and checks
 

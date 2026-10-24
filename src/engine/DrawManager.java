@@ -961,7 +961,8 @@ public final class DrawManager {
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.DARK_GRAY);
         backBufferGraphics.drawRect(x, y, size, size);
         boolean owned = assets.getUnlockedContentIds().contains(product.getId());
-        String badge = owned ? "Owned" : "";
+        boolean available = product.isAvailableByDefault();
+        String badge = available ? "Available" : owned ? "Owned" : "";
         drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
         drawShopProductIcon(product, x + size / 2, y + 18);
@@ -970,11 +971,23 @@ public final class DrawManager {
         drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);
         backBufferGraphics.setColor(Color.DARK_GRAY);
         backBufferGraphics.drawLine(x + 9, y + size - 25, x + size - 9, y + size - 25);
-        String price = owned ? "Unlocked" : product.getPrice() + " C";
-        drawShopText(price, x + 9, y + size - 9, 11, owned ? Color.GRAY : Color.WHITE, size - 18);
+        String price = available || owned ? "Unlocked" : product.getPrice() + " C";
+        drawShopText(price, x + 9, y + size - 9, 11, available || owned ? Color.GRAY : Color.WHITE, size - 18);
     }
 
     private void drawShopProductIcon(ShopProduct product, int centerX, int y) {
+        if (product.getShipType() != null) {
+            boolean[][] sprite = ShipSprites.forType(product.getShipType());
+            backBufferGraphics.setColor(Color.WHITE);
+            for (int x = 0; x < sprite.length; x++) {
+                for (int row = 0; row < sprite[x].length; row++) {
+                    if (sprite[x][row]) {
+                        backBufferGraphics.fillRect(centerX - sprite.length + x * 2, y + 8 + row * 2, 2, 2);
+                    }
+                }
+            }
+            return;
+        }
         PermanentUpgrade upgrade = PermanentUpgrade.forProduct(product.getId());
         if (upgrade == null) {
             drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, centerX - 10, y + 2);

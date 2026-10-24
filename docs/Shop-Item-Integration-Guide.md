@@ -4,12 +4,12 @@ The existing Shop layout is retained. **Upgrades** replaces the upper consumable
 
 ## Purchases and ownership
 
-- `ShopProducts.availableProducts()` defines the production upgrades. `Category.UPGRADE` places them in the upper row; `Category.UNLOCKABLE` places other permanent products in the lower row.
+- `ShopProducts.availableProducts()` defines the production upgrades and ships. `Category.UPGRADE` places upgrades in the upper row; `Category.UNLOCKABLE` places ships and other permanent products in the lower row.
 - `Core.getShopController()` returns the controller for the shared `PlayerAssets`. Call `purchase(productId)` to buy a product using its catalog price.
 - `PurchaseSystem` validates the ID, prerequisites, existing ownership and balance. Successful purchases deduct Credits and record a permanent unlock; rejections change nothing.
 - Each upgrade card advances to its next level after purchase. All three levels owned displays `MAX`. `Core` captures the purchased bonuses when starting a Campaign.
 
-Actual ship products, prices and ownership-based access still require agreement with the ship team. The preview retains the existing Unlock A, Ship B and Ship C samples; they do not change Hangar selection or ship stats.
+Standard Ship, Speedster and Heavy Tank appear in the lower row as available without purchase. Confirming a card does not deduct Credits, grant ownership or write a save; all three remain selectable in Hangar. The entries use `ship.standard`, `ship.speedster` and `ship.tank`. Paid access requires agreed prices, existing-player policy and matching Hangar checks; changing a shop entry alone does not restrict ship selection. Existing saved ownership is retained.
 
 ## Saves and rewards
 

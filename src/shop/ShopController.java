@@ -11,7 +11,9 @@ import engine.FileManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Coordinates permanent purchases and saving on the gameplay thread. */
 public final class ShopController {
@@ -43,13 +45,18 @@ public final class ShopController {
         this.saver = saver;
         ShopCatalog catalog = new ShopCatalog();
         List<ShopProduct> listed = new ArrayList<ShopProduct>();
+        Set<String> ids = new HashSet<String>();
         for (ShopProduct product : definitions) {
             if (product == null) throw new IllegalArgumentException("Product cannot be null.");
+            if (!ids.add(product.getId())) {
+                throw new IllegalArgumentException("Duplicate product: " + product.getId());
+            }
+            listed.add(product);
+            if (product.isAvailableByDefault()) continue;
             boolean registered = product.getCategory() == Category.UPGRADE
                     ? catalog.registerUpgrade(product.getId(), product.getPrice(), product.getRequiredUnlockId())
                     : catalog.registerUnlockable(product.getId(), product.getPrice(), product.getRequiredUnlockId());
             if (!registered) throw new IllegalArgumentException("Duplicate or invalid product: " + product.getId());
-            listed.add(product);
         }
         products = Collections.unmodifiableList(listed);
         purchases = new PurchaseSystem(assets, catalog);
@@ -74,6 +81,11 @@ public final class ShopController {
     }
 
     public synchronized PurchaseResult purchase(String productId) {
+        for (ShopProduct product : products) {
+            if (product.getId().equals(productId) && product.isAvailableByDefault()) {
+                return PurchaseResult.ALREADY_UNLOCKED;
+            }
+        }
         PurchaseResult result = purchases.purchaseUnlockable(productId);
         if (result == PurchaseResult.SUCCESS) saveLatestAssets();
         return result;

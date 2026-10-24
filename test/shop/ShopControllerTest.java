@@ -44,7 +44,7 @@ class ShopControllerTest {
         ShopController production = new ShopController(assets, files);
 
         assertEquals(1000, production.snapshot().getBalance());
-        assertEquals(3, production.getProducts().size());
+        assertEquals(6, production.getProducts().size());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, production.getSaveStatus());
         assertArrayEquals(before, Files.readAllBytes(save));
     }

@@ -6,6 +6,7 @@ import currency.PlayerAssets;
 import engine.Core;
 import java.awt.Canvas;
 import java.awt.event.KeyEvent;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,7 +84,7 @@ class UpgradeShopScreenTest {
         assertEquals(50, assets.getBalance());
         tap(KeyEvent.VK_ENTER);
         assertEquals(50, assets.getBalance());
-        assertEquals(3, controller.getProducts().size());
+        assertEquals(6, controller.getProducts().size());
     }
 
     @Test
@@ -97,5 +98,30 @@ class UpgradeShopScreenTest {
         screen.processInput(true);
         assertEquals(900, assets.getBalance());
         assertEquals(PermanentUpgrade.RELOADER.getProductId(2), controller.getProducts().get(2).getId());
+    }
+
+    @Test
+    void lowerShipCardsDoNotBuyOrSaveAndUpperUpgradesStillWork() throws Exception {
+        Path save = temp.resolve("assets.properties");
+        tap(KeyEvent.VK_DOWN);
+        for (int ship = 0; ship < entity.ShipType.values().length; ship++) {
+            tap(KeyEvent.VK_ENTER);
+            tap(KeyEvent.VK_RIGHT);
+        }
+        assertEquals(1000, assets.getBalance());
+        assertTrue(assets.snapshot().getUnlockedContentIds().isEmpty());
+        assertFalse(Files.exists(save));
+        assertEquals(ShopController.SaveStatus.NOT_NEEDED, controller.getSaveStatus());
+
+        tap(KeyEvent.VK_UP);
+        tap(KeyEvent.VK_ENTER);
+        assertEquals(900, assets.getBalance());
+        assertEquals(java.util.Collections.singleton(PermanentUpgrade.HULL.getProductId(1)),
+                assets.snapshot().getUnlockedContentIds());
+        byte[] written = Files.readAllBytes(save);
+        tap(KeyEvent.VK_DOWN);
+        tap(KeyEvent.VK_ENTER);
+        assertArrayEquals(written, Files.readAllBytes(save));
+        assertEquals(900, assets.getBalance());
     }
 }

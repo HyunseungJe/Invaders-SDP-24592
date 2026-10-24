@@ -37,6 +37,7 @@ public final class ShopTestFixtures {
     /** Production upgrades above the existing preview-only unlock cards. */
     public static List<ShopProduct> previewProducts() {
         List<ShopProduct> products = new ArrayList<ShopProduct>(ShopProducts.availableProducts());
+        products.removeIf(product -> product.getCategory() == Category.UNLOCKABLE);
         products.add(products().get(1));
         products.add(new ShopProduct("TEST_SHIP_B", "Ship B", Category.UNLOCKABLE, 650,
                 "Sample ship unlock."));

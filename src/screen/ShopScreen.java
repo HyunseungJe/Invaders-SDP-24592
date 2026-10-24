@@ -26,6 +26,7 @@ public class ShopScreen extends Screen {
     /** 0: Back, 1: Retry save (only while a save is pending). */
     private int selectedAction;
     private PurchaseResult lastResult;
+    private boolean lastProductAvailableByDefault;
     private boolean upHeld;
     private boolean downHeld;
     private boolean leftHeld;
@@ -68,6 +69,7 @@ public class ShopScreen extends Screen {
         unlockIndex = 0;
         selectedAction = 0;
         lastResult = null;
+        lastProductAvailableByDefault = false;
         inputDelay.reset();
         // Consume held state on entry, including a confirm key from the Main Menu.
         processInput(false);
@@ -152,6 +154,7 @@ public class ShopScreen extends Screen {
 
     private void buySelectedProduct() {
         ShopProduct product = selectedSection == 0 ? upgrades.get(upgradeIndex) : unlocks.get(unlockIndex);
+        lastProductAvailableByDefault = product.isAvailableByDefault();
         // Refresh before the ownership check in case another game-loop action changed assets.
         assets = controller.snapshot();
         if (assets.getUnlockedContentIds().contains(product.getId())) {
@@ -181,7 +184,8 @@ public class ShopScreen extends Screen {
         drawManager.initDrawing(this);
         drawManager.drawShop(this, upgrades, unlocks, assets, selectedSection,
                 upgradeIndex, unlockIndex, selectedAction,
-                resultMessage(lastResult), lastResult == PurchaseResult.SUCCESS,
+                lastProductAvailableByDefault ? "Available in Hangar. No purchase needed." : resultMessage(lastResult),
+                lastProductAvailableByDefault || lastResult == PurchaseResult.SUCCESS,
                 controller.getSaveStatus());
         drawManager.completeDrawing(this);
     }
