@@ -152,6 +152,11 @@ public class RewardSystem {
      *         Integer.MAX_VALUE
      */
     public boolean rewardLevel(int difficulty) {
+        return accumulateReward(getLevelReward(difficulty));
+    }
+
+    /** Returns the configured bonus without accruing it; invalid or overflowing values return 0. */
+    public int getLevelReward(int difficulty) {
         final long calculatedReward;
 
         switch (difficulty) {
@@ -165,14 +170,10 @@ public class RewardSystem {
                 calculatedReward = (long) baseLevelReward * 2;
                 break;
             default:
-                return false;
+                return 0;
         }
 
-        if (calculatedReward > Integer.MAX_VALUE) {
-            return false;
-        }
-
-        return accumulateReward((int) calculatedReward);
+        return calculatedReward > Integer.MAX_VALUE ? 0 : (int) calculatedReward;
     }
 
 

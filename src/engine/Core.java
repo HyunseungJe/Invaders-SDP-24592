@@ -73,6 +73,8 @@ public final class Core {
 	private static PlayerAssets playerAssets;
 	/** Shop controller shared for this application session. */
 	private static ShopController shopController;
+	/** Rewards shared by Campaign stages and the HUD for this session. */
+	private static CampaignRewards campaignRewards;
 	private static RecordsService recordsService;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
@@ -129,7 +131,7 @@ public final class Core {
 			return;
 		}
 
-		CampaignRewards campaignRewards = new CampaignRewards(playerAssets, getFileManager());
+		campaignRewards = new CampaignRewards(playerAssets, getFileManager());
 
 		recordsService = new RecordsService(new java.io.File(System.getProperty("user.home"),
 				".space-invaders/records-achievements.properties").toPath());
@@ -518,13 +520,17 @@ public final class Core {
 	}
 
 	/**
-	 * Returns a read-only balance snapshot on the gameplay thread after startup.
+	 * Returns balance plus pending rewards on the gameplay thread after startup.
 	 * Reads the existing session without loading, saving or settling rewards.
 	 *
-	 * @throws IllegalStateException if startup has not initialized the shop controller
+	 * @throws IllegalStateException if startup has not initialized assets and rewards
 	 */
 	public static AssetHudSnapshot getAssetHudSnapshot() {
-		return new AssetHudSnapshot(getShopController().getBalance());
+		ShopController shop = getShopController();
+		if (campaignRewards == null) {
+			throw new IllegalStateException("Campaign rewards have not been initialized.");
+		}
+		return new AssetHudSnapshot((long) shop.getBalance() + campaignRewards.getPendingCurrency());
 	}
 
 	/**

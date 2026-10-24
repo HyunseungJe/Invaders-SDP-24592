@@ -1,16 +1,16 @@
 package hud;
 
-/** Immutable HUD data containing only the current spendable Credits. */
+/** Immutable HUD data containing the balance plus rewards awaiting settlement. */
 public final class AssetHudSnapshot {
-    private final int credits;
+    private final long credits;
 
-    public AssetHudSnapshot(int credits) {
+    public AssetHudSnapshot(long credits) {
         if (credits < 0) throw new IllegalArgumentException("Credits cannot be negative.");
         this.credits = credits;
     }
 
-    /** Rewards still awaiting settlement are not included. */
-    public int getCredits() {
+    /** Display total; pending rewards cannot be spent until settlement succeeds. */
+    public long getCredits() {
         return credits;
     }
 }

@@ -36,6 +36,15 @@ final class CampaignRewards {
         return lastResult;
     }
 
+    /** Unpaid rewards from stages whose screens have finished, including queued completions. */
+    long getPendingCurrency() {
+        long pending = rewards.getPendingCurrency();
+        for (int difficulty : waitingCompletions) {
+            pending += rewards.getLevelReward(difficulty);
+        }
+        return pending;
+    }
+
     /** Retries unpaid rewards and saves the latest assets without repeating paid bonuses. */
     SettlementResult retryPendingRewards() {
         if (rewards.getPendingCurrency() > 0) {
@@ -62,7 +71,7 @@ final class CampaignRewards {
     final class StageSubscription implements AutoCloseable, GameplayEventListener<LevelCompletedEvent> {
         private final GameplayEventPublisher events;
         private final int level;
-        private boolean completed;
+        private Integer completedDifficulty;
         private boolean closed;
 
         private StageSubscription(GameplayEventPublisher events, int level) {
@@ -73,20 +82,22 @@ final class CampaignRewards {
 
         @Override
         public void onEvent(LevelCompletedEvent event) {
-            if (closed || completed || event.getLevelId() != level) return;
-            completed = true;
-            waitingCompletions.addLast(event.getDifficulty());
-            // Save when the clear is published, before the screen's end-of-stage delay.
-            SettlementResult result = retryPendingRewards();
-            if (result != SettlementResult.SUCCESS) {
-                Core.getLogger().warning("Campaign clear reward needs retry: " + result);
-            }
+            if (closed || completedDifficulty != null || event.getLevelId() != level) return;
+            completedDifficulty = event.getDifficulty();
         }
 
         @Override
         public void close() {
+            if (closed) return;
             closed = true;
             events.unsubscribe(LevelCompletedEvent.class, this);
+            if (completedDifficulty == null) return;
+            // Apply the clear bonus after the game screen, including its end delay, has finished.
+            waitingCompletions.addLast(completedDifficulty);
+            SettlementResult result = retryPendingRewards();
+            if (result != SettlementResult.SUCCESS) {
+                Core.getLogger().warning("Campaign clear reward needs retry: " + result);
+            }
         }
     }
 }

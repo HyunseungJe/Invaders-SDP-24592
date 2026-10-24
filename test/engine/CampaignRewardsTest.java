@@ -39,19 +39,24 @@ class CampaignRewardsTest {
     @Test
     void duplicateForeignAndClosedEventsDoNotPayAgain() throws Exception {
         GameplayEventPublisher events = new GameplayEventPublisher();
-        try (CampaignRewards.StageSubscription subscription = rewards.subscribe(events, 2)) {
+        CampaignRewards.StageSubscription subscription = rewards.subscribe(events, 2);
+        try (subscription) {
             events.publish(new LevelCompletedEvent(1, GameplayConfig.HARD));
             events.publish(new EnemyDefeatedEvent("run", "enemy"));
             assertEquals(0, assets.getBalance());
             assertFalse(Files.exists(save));
             events.publish(new LevelCompletedEvent(2, GameplayConfig.NORMAL));
-            byte[] paid = Files.readAllBytes(save);
             events.publish(new LevelCompletedEvent(2, GameplayConfig.HARD));
             events.publish(new LevelCompletedEvent(2, GameplayConfig.NORMAL));
-            assertArrayEquals(paid, Files.readAllBytes(save));
+            assertEquals(0, assets.getBalance());
+            assertEquals(0, rewards.getPendingCurrency());
+            assertFalse(Files.exists(save));
         }
+        byte[] paid = Files.readAllBytes(save);
+        subscription.close();
         events.publish(new LevelCompletedEvent(2, GameplayConfig.HARD));
         assertEquals(SettlementResult.SUCCESS, rewards.retryPendingRewards());
+        assertArrayEquals(paid, Files.readAllBytes(save));
         assertEquals(100, assets.getBalance());
         assertEquals(100, files.loadPlayerAssets(save).getBalance());
     }

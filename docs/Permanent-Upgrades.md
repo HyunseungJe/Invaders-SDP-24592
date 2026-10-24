@@ -10,7 +10,7 @@ The Shop's upper row sells three permanent upgrades in place of consumable items
 
 These are provisional balance values in [`PermanentUpgrade`](../src/currency/PermanentUpgrade.java). Bonuses are totals relative to the selected ship's original stats. The game uses lives, not a separate HP pool. Purchases apply to the next Campaign, persist across restarts, and remain in effect when moving between stages or restoring stats after temporary effects. Infinite mode and custom levels retain their existing behavior.
 
-Campaign clears now award 50 Credits on Easy, 100 on Normal and 200 on Hard, using the difficulty captured for that stage. Each attempt pays once and saves immediately; replaying a stage in a new run can earn another reward. Failed stages, incomplete waves, custom levels and Infinite mode do not grant this bonus. Enemy-type rewards remain pending coordination.
+Campaign clears now award 50 Credits on Easy, 100 on Normal and 200 on Hard, using the difficulty captured for that stage. Each attempt pays once and saves after the game screen and its end-of-stage delay finish; replaying a stage in a new run can earn another reward. Failed stages, incomplete waves, custom levels and Infinite mode do not grant this bonus. Enemy-type rewards remain pending coordination.
 
 ## Run and try it
 

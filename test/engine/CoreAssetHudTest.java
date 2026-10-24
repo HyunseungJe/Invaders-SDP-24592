@@ -25,6 +25,8 @@ class CoreAssetHudTest {
     private final PlayerAssets assets = new PlayerAssets();
     private Field controllerField;
     private Object previousController;
+    private Field rewardsField;
+    private Object previousRewards;
     private Path save;
     private ShopController shop;
     private CampaignRewards rewards;
@@ -34,23 +36,31 @@ class CoreAssetHudTest {
         controllerField = Core.class.getDeclaredField("shopController");
         controllerField.setAccessible(true);
         previousController = controllerField.get(null);
+        rewardsField = Core.class.getDeclaredField("campaignRewards");
+        rewardsField.setAccessible(true);
+        previousRewards = rewardsField.get(null);
         save = temp.resolve("assets.properties");
         shop = ShopTestFixtures.upgradeController(assets, new ShopTestFixtures.SaveFile(files, save));
         controllerField.set(null, shop);
         rewards = new CampaignRewards(assets, files, save);
+        rewardsField.set(null, rewards);
     }
 
     @AfterEach
     void restoreController() throws Exception {
         controllerField.set(null, previousController);
+        rewardsField.set(null, previousRewards);
     }
 
     private void clearStage(int difficulty) {
         GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
                 new GameSettings(1, 1, 60, 2000), false, 448, 520, 60);
         Core.runCampaignStage(game, rewards, screen -> {
+            long beforeClear = Core.getAssetHudSnapshot().getCredits();
             screen.getGameplayEvents().publish(new LevelCompletedEvent(1, difficulty));
             screen.getGameplayEvents().publish(new LevelCompletedEvent(1, difficulty));
+            assertEquals(beforeClear, Core.getAssetHudSnapshot().getCredits(),
+                    "The current stage's clear bonus must stay out of the in-game HUD.");
         });
     }
 
@@ -79,9 +89,10 @@ class CoreAssetHudTest {
         PlayerAssets restored = new PlayerAssets();
         ShopController reopened = Core.initializeShop(restored, files, files.loadPlayerAssets(save));
         controllerField.set(null, reopened);
+        rewards = new CampaignRewards(restored, files, save);
+        rewardsField.set(null, rewards);
         assertEquals(100, Core.getAssetHudSnapshot().getCredits());
         assertTrue(restored.isUnlocked(PermanentUpgrade.HULL.getProductId(1)));
-        rewards = new CampaignRewards(restored, files, save);
         clearStage(GameplayConfig.NORMAL);
         assertEquals(200, Core.getAssetHudSnapshot().getCredits());
         assertEquals(100, shop.getBalance(), "The HUD must read the reopened session.");
@@ -103,20 +114,55 @@ class CoreAssetHudTest {
     }
 
     @Test
-    void pendingOverflowRewardsAreExcludedUntilSettlementSucceeds() throws Exception {
+    void pendingAndQueuedRewardsStayInTheTotalAcrossSettlement() throws Exception {
         assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE, null, null)));
         clearStage(GameplayConfig.EASY);
+        assertEquals((long) Integer.MAX_VALUE + 50, Core.getAssetHudSnapshot().getCredits());
+        clearStage(GameplayConfig.NORMAL);
+        clearStage(GameplayConfig.HARD);
+        AssetHudSnapshot pending = Core.getAssetHudSnapshot();
+        assertEquals((long) Integer.MAX_VALUE + 350, pending.getCredits());
+        assertEquals(Integer.MAX_VALUE, shop.getBalance());
         assertEquals(SettlementResult.SETTLEMENT_FAILED, rewards.getLastResult());
-        assertEquals(Integer.MAX_VALUE, Core.getAssetHudSnapshot().getCredits());
         assertFalse(Files.exists(save));
 
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(1)));
-        assertEquals(Integer.MAX_VALUE - 100, Core.getAssetHudSnapshot().getCredits());
-        assertEquals(SettlementResult.SETTLEMENT_FAILED, rewards.getLastResult(),
-                "Reading the HUD must not settle pending rewards.");
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(2)));
+        byte[] saved = Files.readAllBytes(save);
+        assertEquals(Integer.MAX_VALUE - 350, shop.getBalance());
+        assertEquals(Integer.MAX_VALUE, Core.getAssetHudSnapshot().getCredits());
+        assertEquals(350, rewards.getPendingCurrency(), "Reading the HUD must not settle rewards.");
+        assertArrayEquals(saved, Files.readAllBytes(save));
         assertEquals(SettlementResult.SUCCESS, rewards.retryPendingRewards());
-        assertEquals(Integer.MAX_VALUE - 50, Core.getAssetHudSnapshot().getCredits());
-        assertEquals(Integer.MAX_VALUE - 50, files.loadPlayerAssets(save).getBalance());
+        assertEquals(SettlementResult.SUCCESS, rewards.retryPendingRewards());
+        assertEquals(0, rewards.getPendingCurrency());
+        assertEquals(Integer.MAX_VALUE, Core.getAssetHudSnapshot().getCredits());
+        assertEquals((long) Integer.MAX_VALUE + 350, pending.getCredits());
+        assertEquals(Integer.MAX_VALUE, files.loadPlayerAssets(save).getBalance());
+    }
+
+    @Test
+    void queuedRewardsStayVisibleWhenASaveStopsSettlementPartway() throws Exception {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE, null, null)));
+        clearStage(GameplayConfig.EASY);
+        clearStage(GameplayConfig.NORMAL);
+        Files.createDirectory(save);
+        Path blocker = Files.createFile(save.resolve("blocker"));
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(1)));
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(2)));
+        long total = (long) Integer.MAX_VALUE - 200;
+        assertEquals(total, Core.getAssetHudSnapshot().getCredits());
+
+        assertEquals(SettlementResult.SAVE_FAILED, rewards.retryPendingRewards());
+        assertEquals(Integer.MAX_VALUE - 300, shop.getBalance());
+        assertEquals(100, rewards.getPendingCurrency());
+        assertEquals(total, Core.getAssetHudSnapshot().getCredits());
+        Files.delete(blocker);
+        Files.delete(save);
+        assertEquals(SettlementResult.SUCCESS, rewards.retryPendingRewards());
+        assertEquals(0, rewards.getPendingCurrency());
+        assertEquals(total, Core.getAssetHudSnapshot().getCredits());
+        assertEquals(total, files.loadPlayerAssets(save).getBalance());
     }
 
     @Test

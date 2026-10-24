@@ -97,6 +97,28 @@ class RewardSystemTest {
     }
 
     @Test
+    void testLevelRewardQueriesDoNotAccrueOrSettleCurrency() {
+        assertTrue(rewards.rewardEnemy("BASIC"));
+        assertTrue(rewards.setBaseLevelReward(5));
+        assertEquals(2, rewards.getLevelReward(0));
+        assertEquals(5, rewards.getLevelReward(1));
+        assertEquals(10, rewards.getLevelReward(2));
+        assertEquals(0, rewards.getLevelReward(-1));
+        assertEquals(0, assets.getBalance());
+        assertEquals(10, rewards.getPendingCurrency());
+        assertTrue(rewards.rewardLevel(2));
+        assertEquals(20, rewards.getPendingCurrency());
+
+        assertTrue(rewards.setBaseLevelReward(Integer.MAX_VALUE));
+        assertEquals(Integer.MAX_VALUE, rewards.getLevelReward(1));
+        assertEquals(0, rewards.getLevelReward(2));
+        assertFalse(rewards.rewardLevel(2));
+        assertEquals(20, rewards.getPendingCurrency());
+        assertTrue(rewards.setBaseLevelReward(1));
+        assertEquals(1, rewards.getLevelReward(0));
+    }
+
+    @Test
     void testRewardAccumulation() {
         assertTrue(rewards.rewardEnemy("BASIC"));
         assertTrue(rewards.rewardEnemy("FAST"));

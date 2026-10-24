@@ -95,7 +95,7 @@ class CampaignRewardIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({"0,50", "1,100", "2,200"})
-    void coreSavesActualClearBeforeStageReturnsUsingCapturedDifficulty(int difficulty, int amount)
+    void coreSavesActualClearAfterGameScreenReturnsUsingCapturedDifficulty(int difficulty, int amount)
             throws Exception {
         GameplayConfig.setDifficulty(difficulty);
         GameScreen game = stage(1, 1);
@@ -104,10 +104,12 @@ class CampaignRewardIntegrationTest {
             screen.initialize();
             clearWave(screen);
             assertTrue(screen.isStageCleared());
-            assertEquals(amount, assets.getBalance());
-            assertTrue(Files.isRegularFile(save), "Save must precede the stage-end delay.");
+            assertEquals(0, assets.getBalance());
+            assertEquals(0, rewards.getPendingCurrency());
+            assertFalse(Files.exists(save), "Clear rewards wait until the game screen finishes.");
             advance(screen);
         });
+        assertEquals(amount, assets.getBalance());
         assertEquals(amount, files.loadPlayerAssets(save).getBalance());
         game.getGameplayEvents().publish(new LevelCompletedEvent(1, GameplayConfig.HARD));
         assertEquals(amount, assets.getBalance());
@@ -139,8 +141,9 @@ class CampaignRewardIntegrationTest {
             assertEquals(0, shop.snapshot().getBalance());
             clearWave(screen);
             advance(screen);
-            assertEquals(100, shop.snapshot().getBalance());
+            assertEquals(0, shop.snapshot().getBalance());
         });
+        assertEquals(100, shop.snapshot().getBalance());
         assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(1)));
         PlayerAssets reloaded = new PlayerAssets();
         assertTrue(reloaded.restore(files.loadPlayerAssets(save)));
@@ -171,8 +174,9 @@ class CampaignRewardIntegrationTest {
             }
             advance(screen);
             assertTrue(screen.isStageCleared());
-            assertEquals(100, assets.getBalance());
+            assertEquals(0, assets.getBalance());
         });
+        assertEquals(100, assets.getBalance());
         assertEquals(100, files.loadPlayerAssets(save).getBalance());
     }
 

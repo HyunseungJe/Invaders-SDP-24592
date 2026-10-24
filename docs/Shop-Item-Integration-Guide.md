@@ -15,15 +15,17 @@ Actual ship products, prices and ownership-based access still require agreement 
 
 `ShopController` saves after a successful purchase. Check `getSaveStatus()` separately from `PurchaseResult`. If saving fails, the purchase remains in memory; `retrySave()` writes the latest assets without charging or granting ownership again.
 
-Campaign `LevelCompletedEvent` subscriptions award and save the stage-clear reward through `CampaignRewards`. Save retries use the same shared assets as the Shop. Enemy-type rewards are not connected yet.
+Campaign `LevelCompletedEvent` subscriptions record a clear; `CampaignRewards` awards and saves its bonus after the game screen finishes, including its end-of-stage delay. Save retries use the same shared assets as the Shop. Enemy-type rewards are not connected yet.
 
 The asset save format retains balance, permanent IDs and legacy item quantities. Legacy quantities are preserved on load/save only; consumable purchase and use services have been removed. Field pickups and temporary effects remain unchanged and do not use this Shop inventory.
 
 ## HUD balance API
 
-After startup, read `int credits = Core.getAssetHudSnapshot().getCredits();` on the gameplay thread when refreshing the HUD. Each call returns an immutable balance-only snapshot of the same session used by purchases, Campaign rewards and save loading. Request a new snapshot after changes; existing snapshots retain their value.
+On the gameplay thread after startup, read `long credits = Core.getAssetHudSnapshot().getCredits();`. Each call returns an immutable snapshot of the existing session; request a new snapshot when updating the HUD.
 
-Credits are the current spendable balance, including in-memory changes if saving failed. Pending rewards are excluded. Reading does not load, save or settle assets; calling before session initialization throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains with the HUD team.
+Credits combine the current balance and unpaid rewards from finished stage screens, including queued completions. The current stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
+
+Reading does not load, save or settle rewards. Calling before assets and rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains with the HUD team.
 
 ## Verification
 
