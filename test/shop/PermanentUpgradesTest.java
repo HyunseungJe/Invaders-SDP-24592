@@ -56,7 +56,7 @@ class PermanentUpgradesTest {
         }
         assertEquals(450, restored.getBalance());
         assertTrue(restored.isUnlocked("legacy.ship"));
-        assertEquals(4, restored.getItemQuantity("legacy.item"));
+        assertEquals(4, restored.snapshot().getItemQuantities().get("legacy.item"));
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, reopened.getSaveStatus());
     }
 

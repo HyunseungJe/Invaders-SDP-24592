@@ -885,9 +885,9 @@ public final class DrawManager {
     }
 
     /** Draws the shop cards and purchase/save feedback. */
-    public void drawShop(final Screen screen, final List<ShopProduct> items,
+    public void drawShop(final Screen screen, final List<ShopProduct> upgrades,
             final List<ShopProduct> unlocks, final PlayerAssetsState assets, final int section,
-            final int itemIndex, final int unlockIndex, final int actionIndex,
+            final int upgradeIndex, final int unlockIndex, final int actionIndex,
             final String feedback, final boolean purchaseSucceeded, final SaveStatus saveStatus) {
         int width = screen.getWidth();
         int height = screen.getHeight();
@@ -900,8 +900,8 @@ public final class DrawManager {
                 - Icon.COIN.getWidth() * 2 - 6, 47, 2);
 
         int cardSize = Math.max(76, Math.min(120, Math.min((width - 80) / 3, (height - 248) / 2)));
-        drawShopShelf(screen, items, assets, "Items", "No items available",
-                96, cardSize, itemIndex, section == 0);
+        drawShopShelf(screen, upgrades, assets, "Upgrades", "No upgrades available",
+                96, cardSize, upgradeIndex, section == 0);
         drawShopShelf(screen, unlocks, assets, "Unlocks", "No unlocks available",
                 132 + cardSize, cardSize, unlockIndex, section == 1);
 
@@ -959,13 +959,11 @@ public final class DrawManager {
             int x, int y, int size, boolean selected) {
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.DARK_GRAY);
         backBufferGraphics.drawRect(x, y, size, size);
-        boolean permanent = product.getCategory() == Category.UNLOCKABLE;
-        boolean owned = permanent && assets.getUnlockedContentIds().contains(product.getId());
-        Integer quantity = assets.getItemQuantities().get(product.getId());
-        String badge = owned ? "Owned" : !permanent ? "x" + (quantity == null ? 0 : quantity) : "";
+        boolean owned = assets.getUnlockedContentIds().contains(product.getId());
+        String badge = owned ? "Owned" : "";
         drawShopText(badge, x + 7, y + 12, 9, Color.GRAY, size - 14);
         backBufferGraphics.setColor(selected ? Color.GREEN : Color.WHITE);
-        drawShopCategoryIcon(permanent, x + size / 2 - 10, y + 20);
+        drawShopCategoryIcon(product.getCategory() == Category.UNLOCKABLE, x + size / 2 - 10, y + 20);
         drawShopText(product.getName(), x + 9, y + 60, 11,
                 selected ? Color.GREEN : Color.WHITE, size - 18);
         drawShopDescription(product.getDescription(), x + 9, y + 75, size - 18);

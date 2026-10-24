@@ -13,7 +13,7 @@ public final class ShopProduct {
 
     public ShopProduct(String id, String name, Category category, int price) {
         this(id, name, category, price,
-                category == Category.INVENTORY ? "Inventory item" : "Permanent unlock");
+                category == Category.UPGRADE ? "Permanent stat upgrade" : "Permanent unlock");
     }
 
     public ShopProduct(String id, String name, Category category, int price,
@@ -24,8 +24,8 @@ public final class ShopProduct {
     public ShopProduct(String id, String name, Category category, int price,
             String description, String requiredUnlockId) {
         if (requiredUnlockId != null && (requiredUnlockId.trim().isEmpty()
-                || category != Category.UNLOCKABLE || requiredUnlockId.equals(id))) {
-            throw new IllegalArgumentException("Only unlocks may require a different unlock.");
+                || requiredUnlockId.equals(id))) {
+            throw new IllegalArgumentException("Prerequisite must be a different, nonblank unlock ID.");
         }
         if (id == null || id.trim().isEmpty() || name == null
                 || name.trim().isEmpty() || category == null || price <= 0

@@ -13,26 +13,33 @@ class ShopCatalogTest {
     }
 
     @Test
-    void testZeroAndNegativePriceRejection() {
-        assertFalse(catalog.registerInventoryItem("free_potion", 0));
+    void invalidIdsAndPricesAreRejected() {
+        assertFalse(catalog.registerUpgrade(null, 100));
+        assertFalse(catalog.registerUnlockable(" ", 100));
+        assertFalse(catalog.registerUpgrade("free_upgrade", 0));
         assertFalse(catalog.registerUnlockable("free_stage", 0));
-        assertFalse(catalog.registerInventoryItem("cursed_item", -50));
-
-        // Ensure catalog remained unchanged
-        assertEquals(-1, catalog.getPrice("free_potion"));
+        assertFalse(catalog.registerUpgrade("invalid", -50));
+        assertEquals(-1, catalog.getPrice("free_upgrade"));
     }
 
     @Test
-    void testDuplicateRegistrationPreservesOriginal() {
-        assertTrue(catalog.registerInventoryItem("potion", 100));
+    void duplicateRegistrationPreservesOriginal() {
+        assertTrue(catalog.registerUpgrade("upgrade", 100));
+        assertFalse(catalog.registerUnlockable("upgrade", 200));
+        assertFalse(catalog.registerUpgrade("upgrade", 50));
+        assertEquals(100, catalog.getPrice("upgrade"));
+        assertTrue(catalog.isUpgrade("upgrade"));
+        assertTrue(catalog.isUnlockable("upgrade"));
+    }
 
-        // Attempt to overwrite with a different price and category
-        assertFalse(catalog.registerUnlockable("potion", 200));
-        assertFalse(catalog.registerInventoryItem("potion", 50));
-
-        // Assert original state is preserved
-        assertEquals(100, catalog.getPrice("potion"));
-        assertTrue(catalog.isInventoryItem("potion"));
-        assertFalse(catalog.isUnlockable("potion"));
+    @Test
+    void bothCategoriesGrantPermanentOwnership() {
+        assertTrue(catalog.registerUpgrade("upgrade", 100));
+        assertTrue(catalog.registerUnlockable("ship", 500));
+        assertTrue(catalog.isUnlockable("upgrade"));
+        assertTrue(catalog.isUnlockable("ship"));
+        assertFalse(catalog.isUpgrade("ship"));
+        assertFalse(catalog.isUnlockable("unknown"));
+        assertFalse(catalog.isUpgrade(null));
     }
 }

@@ -13,10 +13,6 @@ public enum PurchaseResult {
     ITEM_NOT_AVAILABLE,
     /** Indicates that the item's category does not match the required category. */
     CATEGORY_MISMATCH,
-    /** Indicates that the requested purchase quantity is invalid. */
-    INVALID_QUANTITY,
-    /** Indicates that the purchase would cause an integer overflow. */
-    INTEGER_OVERFLOW_DETECTED,
     /** Indicates that the player does not have enough funds for the purchase. */
     INSUFFICIENT_FUNDS,
     /** Indicates that the content has already been unlocked. */

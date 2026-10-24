@@ -12,114 +12,63 @@ class PurchaseSystemTest {
     @BeforeEach
     void setUp() {
         assets = new PlayerAssets();
-        assets.addCurrency(1000); // Using the package-private method to fund the test account
-
+        assets.addCurrency(1000);
         catalog = new ShopCatalog();
-        store = new PurchaseSystem(assets, catalog);
-
-        catalog.registerInventoryItem("potion", 100);
+        catalog.registerUpgrade("upgrade", 100);
         catalog.registerUnlockable("stage_02", 500);
+        store = new PurchaseSystem(assets, catalog);
     }
 
     @Test
-    void testInventoryItemPurchase() {
-        PurchaseResult result = store.purchaseInventoryItem("potion", 2); // 200 cost
-        assertEquals(PurchaseResult.SUCCESS, result);
-        assertEquals(800, assets.getBalance());
-        assertEquals(2, assets.getItemQuantity("potion"));
+    void upgradePurchaseGrantsPermanentOwnership() {
+        assertEquals(PurchaseResult.SUCCESS, store.purchaseUnlockable("upgrade"));
+        assertEquals(900, assets.getBalance());
+        assertTrue(assets.isUnlocked("upgrade"));
+        assertTrue(assets.snapshot().getItemQuantities().isEmpty());
     }
 
     @Test
-    void testPermanentUnlockPurchase() {
-        PurchaseResult result = store.purchaseUnlockable("stage_02");
-        assertEquals(PurchaseResult.SUCCESS, result);
+    void permanentUnlockPurchaseRemainsAvailable() {
+        assertEquals(PurchaseResult.SUCCESS, store.purchaseUnlockable("stage_02"));
         assertTrue(assets.isUnlocked("stage_02"));
-        assertEquals(500, assets.getBalance()); // 1000 - 500
-    }
-
-    @Test
-    void testRepeatUnlockPurchaseRejection() {
-        store.purchaseUnlockable("stage_02"); // First time succeeds
-
-        PurchaseResult repeatResult = store.purchaseUnlockable("stage_02");
-        assertEquals(PurchaseResult.ALREADY_UNLOCKED, repeatResult);
-
-        // Balance should NOT be deducted twice
         assertEquals(500, assets.getBalance());
     }
 
     @Test
-    void testCategoryMismatch() {
-        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseUnlockable("potion"));
-        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseInventoryItem("stage_02", 1));
-
-        // State remains unchanged
-        assertEquals(1000, assets.getBalance());
+    void neitherCategoryCanBeChargedTwice() {
+        assertEquals(PurchaseResult.SUCCESS, store.purchaseUnlockable("upgrade"));
+        assertEquals(PurchaseResult.SUCCESS, store.purchaseUnlockable("stage_02"));
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, store.purchaseUnlockable("upgrade"));
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, store.purchaseUnlockable("stage_02"));
+        assertEquals(400, assets.getBalance());
     }
 
     @Test
-    void testInventoryCapacityOverflowRollback() {
-        catalog.registerInventoryItem("cheap_potion", 1);
-        assets.addItem("cheap_potion", Integer.MAX_VALUE - 2);
-
-        PurchaseResult result = store.purchaseInventoryItem("cheap_potion", 5);
-
-        assertEquals(PurchaseResult.INTEGER_OVERFLOW_DETECTED, result);
-        // Ensure balance was rolled back after the inventory rejected it
+    void insufficientFundsDoNotGrantOwnership() {
+        catalog.registerUpgrade("expensive", Integer.MAX_VALUE);
+        assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, store.purchaseUnlockable("expensive"));
         assertEquals(1000, assets.getBalance());
+        assertFalse(assets.isUnlocked("expensive"));
     }
 
     @Test
-    void testInsufficientFunds() {
-        PurchaseResult result = store.purchaseInventoryItem("potion", 20); // 2000 cost, only have 1000
-        assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, result);
-
-        // Assert player assets remain unchanged
+    void invalidAndUnknownIdsDoNotCharge() {
+        assertEquals(PurchaseResult.INVALID_ITEM_ID, store.purchaseUnlockable(null));
+        assertEquals(PurchaseResult.INVALID_ITEM_ID, store.purchaseUnlockable("   "));
+        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseUnlockable("unknown"));
         assertEquals(1000, assets.getBalance());
-        assertEquals(0, assets.getItemQuantity("potion"));
+        assertTrue(assets.snapshot().getUnlockedContentIds().isEmpty());
     }
 
     @Test
-    void testInvalidIdOrUnavailableProduct() {
-        assertEquals(PurchaseResult.INVALID_ITEM_ID, store.purchaseInventoryItem(null, 1));
-        assertEquals(PurchaseResult.INVALID_ITEM_ID, store.purchaseInventoryItem("   ", 1));
-        assertEquals(PurchaseResult.CATEGORY_MISMATCH, store.purchaseInventoryItem("non_existent_item", 1));
-
-        // Assert player assets remain unchanged
-        assertEquals(1000, assets.getBalance());
-    }
-
-    @Test
-    void testInvalidQuantity() {
-        assertEquals(PurchaseResult.INVALID_QUANTITY, store.purchaseInventoryItem("potion", 0));
-        assertEquals(PurchaseResult.INVALID_QUANTITY, store.purchaseInventoryItem("potion", -5));
-
-        // Assert player assets remain unchanged
-        assertEquals(1000, assets.getBalance());
-        assertEquals(0, assets.getItemQuantity("potion"));
-    }
-
-    @Test
-    void testTotalCostOverflow() {
-        catalog.registerInventoryItem("expensive_item", 2000000000);
-        PurchaseResult result = store.purchaseInventoryItem("expensive_item", 2); // Exceeds Integer.MAX_VALUE
-
-        assertEquals(PurchaseResult.INTEGER_OVERFLOW_DETECTED, result);
-        assertEquals(1000, assets.getBalance());
-        assertEquals(0, assets.getItemQuantity("expensive_item"));
-    }
-
-    @Test
-    void testInventoryCapacityOverflowCheck() {
-        catalog.registerInventoryItem("cheap_potion", 1);
-        assets.addItem("cheap_potion", Integer.MAX_VALUE - 2);
-
-        // Attempt to buy 5, which triggers the pre-validation capacity check
-        PurchaseResult result = store.purchaseInventoryItem("cheap_potion", 5);
-
-        assertEquals(PurchaseResult.INTEGER_OVERFLOW_DETECTED, result);
-        // Ensure BOTH balance and the original item quantity remain unchanged
-        assertEquals(1000, assets.getBalance());
-        assertEquals(Integer.MAX_VALUE - 2, assets.getItemQuantity("cheap_potion"));
+    void failedUnlockRestoresTheDeductedPrice() {
+        PlayerAssets rejecting = new PlayerAssets() {
+            @Override boolean unlock(String id) { return false; }
+        };
+        rejecting.addCurrency(1000);
+        PurchaseSystem purchases = new PurchaseSystem(rejecting, catalog);
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, purchases.purchaseUnlockable("upgrade"));
+        assertEquals(1000, rejecting.getBalance());
+        assertFalse(rejecting.isUnlocked("upgrade"));
     }
 }

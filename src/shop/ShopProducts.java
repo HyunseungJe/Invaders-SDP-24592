@@ -7,16 +7,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-final class ShopProducts {
+public final class ShopProducts {
     private ShopProducts() { }
 
-    static List<ShopProduct> availableProducts() {
+    public static List<ShopProduct> availableProducts() {
         List<ShopProduct> products = new ArrayList<ShopProduct>();
         for (PermanentUpgrade upgrade : PermanentUpgrade.values()) {
             for (int level = 1; level <= upgrade.getMaxLevel(); level++) {
                 products.add(new ShopProduct(upgrade.getProductId(level),
                         upgrade.getName() + " " + level + "/" + upgrade.getMaxLevel(),
-                        Category.UNLOCKABLE, upgrade.getPrice(level),
+                        Category.UPGRADE, upgrade.getPrice(level),
                         description(upgrade, level), upgrade.getRequiredUnlockId(level)));
             }
         }

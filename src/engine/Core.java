@@ -41,6 +41,9 @@ import screen.SettingsScreen;
 import screen.ControlsSettingsScreen;
 import screen.GameplaySettingsScreen;
 import shop.ShopController;
+import shop.ShopProduct;
+import shop.ShopProducts;
+import java.util.List;
 
 /**
  * Implements core game logic.
@@ -85,6 +88,12 @@ public final class Core {
 	 *             Program args, ignored.
 	 */
 	public static void main(final String[] args) {
+		run(ShopProducts.availableProducts());
+	}
+
+	/** Starts the game with the supplied catalog; previews can supply isolated sample products. */
+	public static void run(final List<ShopProduct> products) {
+		Objects.requireNonNull(products, "products");
 		try {
 			LOGGER.setUseParentHandlers(false);
 
@@ -111,7 +120,7 @@ public final class Core {
 
 		playerAssets = new PlayerAssets();
 
-		if (!initializeShopWithRetry()) {
+		if (!initializeShopWithRetry(products)) {
 			frame.dispose();
 			if (fileHandler != null) {
 				fileHandler.close();
@@ -364,16 +373,22 @@ public final class Core {
 
 	static ShopController initializeShop(final PlayerAssets assets,
 			final FileManager files, final PlayerAssetsState savedAssets) throws IOException {
+		return initializeShop(assets, files, savedAssets, ShopProducts.availableProducts());
+	}
+
+	static ShopController initializeShop(final PlayerAssets assets, final FileManager files,
+			final PlayerAssetsState savedAssets, final List<ShopProduct> products) throws IOException {
 		if (!assets.restore(savedAssets)) {
 			throw new IOException("Loaded assets could not be restored.");
 		}
-		return new ShopController(assets, files);
+		return new ShopController(assets, files, products);
 	}
 
-	private static boolean initializeShopWithRetry() {
+	private static boolean initializeShopWithRetry(final List<ShopProduct> products) {
 		while (true) {
 			try {
-				shopController = initializeShop(playerAssets, getFileManager());
+				shopController = initializeShop(playerAssets, getFileManager(),
+						getFileManager().loadPlayerAssets(), products);
 				return true;
 			} catch (IOException exception) {
 				LOGGER.warning("Player assets could not be loaded: " + exception);

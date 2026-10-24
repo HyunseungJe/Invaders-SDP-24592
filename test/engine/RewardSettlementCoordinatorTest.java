@@ -1,8 +1,5 @@
 package engine;
 
-import currency.ConsumableActivation;
-import currency.ItemUseResult;
-import currency.ItemUseService;
 import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
@@ -17,8 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -132,47 +127,29 @@ class RewardSettlementCoordinatorTest {
     }
 
     @Test
-    void testSaveRetryUsesLatestAssetsAfterPurchaseAndConsumption() throws IOException {
+    void testSaveRetryUsesLatestAssetsAfterPermanentPurchases() throws IOException {
         Path savePath = createBlockedSavePath();
         RewardSettlementCoordinator coordinator = new RewardSettlementCoordinator(rewards, assets, fileManager, savePath);
         assertTrue(rewards.rewardEnemy("TANK"));
         assertEquals(SettlementResult.SAVE_FAILED, coordinator.processSettlement());
 
         ShopCatalog catalog = new ShopCatalog();
-        assertTrue(catalog.registerInventoryItem("test-item", 5));
+        assertTrue(catalog.registerUpgrade("test-upgrade", 10));
         assertTrue(catalog.registerUnlockable("test-unlock", 10));
         PurchaseSystem purchases = new PurchaseSystem(assets, catalog);
-        assertEquals(PurchaseResult.SUCCESS, purchases.purchaseInventoryItem("test-item", 2));
+        assertEquals(PurchaseResult.SUCCESS, purchases.purchaseUnlockable("test-upgrade"));
         assertEquals(PurchaseResult.SUCCESS, purchases.purchaseUnlockable("test-unlock"));
-
-        final int[] activationCount = {0};
-        Map<String, ConsumableActivation> activations = new HashMap<String, ConsumableActivation>();
-        activations.put("test-item", new ConsumableActivation() {
-            @Override
-            public ItemUseResult validate() {
-                return ItemUseResult.SUCCESS;
-            }
-
-            @Override
-            public ItemUseResult activate() {
-                activationCount[0]++;
-                return ItemUseResult.SUCCESS;
-            }
-        });
-        ItemUseService items = new ItemUseService(assets, catalog, activations);
-        assertEquals(ItemUseResult.SUCCESS, items.tryUse("test-item"));
         assertEquals(30, assets.getBalance());
+        assertTrue(assets.isUnlocked("test-upgrade"));
         assertTrue(assets.isUnlocked("test-unlock"));
-        assertEquals(1, assets.getItemQuantity("test-item"));
         PlayerAssetsState latestAssets = assets.snapshot();
         unblockSavePath(savePath);
 
         assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
         assertEquals(SettlementResult.SUCCESS, coordinator.retrySave());
         assertEquals(30, assets.getBalance());
+        assertTrue(assets.isUnlocked("test-upgrade"));
         assertTrue(assets.isUnlocked("test-unlock"));
-        assertEquals(1, assets.getItemQuantity("test-item"));
-        assertEquals(1, activationCount[0]);
         assertEquals(0, rewards.getPendingCurrency());
         assertSavedAssets(savePath, latestAssets);
     }

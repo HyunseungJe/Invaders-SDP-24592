@@ -27,14 +27,13 @@ class PermanentUpgradeTest {
     @Test
     void prerequisitesRejectSkippedTiersBeforeCharging() {
         ShopCatalog catalog = new ShopCatalog();
-        assertFalse(catalog.registerUnlockable("tier2", 250, "tier1"));
-        assertTrue(catalog.registerUnlockable("tier1", 100));
-        assertTrue(catalog.registerUnlockable("tier2", 250, "tier1"));
-        assertTrue(catalog.registerUnlockable("tier3", 500, "tier2"));
-        assertFalse(catalog.registerUnlockable("tier1", 100, "tier3"));
-        assertFalse(catalog.registerUnlockable("loop", 100, "loop"));
-        assertTrue(catalog.registerInventoryItem("potion", 10));
-        assertFalse(catalog.registerUnlockable("bad", 10, "potion"));
+        assertFalse(catalog.registerUpgrade("tier2", 250, "tier1"));
+        assertTrue(catalog.registerUpgrade("tier1", 100));
+        assertTrue(catalog.registerUpgrade("tier2", 250, "tier1"));
+        assertTrue(catalog.registerUpgrade("tier3", 500, "tier2"));
+        assertFalse(catalog.registerUpgrade("tier1", 100, "tier3"));
+        assertFalse(catalog.registerUpgrade("loop", 100, "loop"));
+        assertFalse(catalog.registerUpgrade("bad", 10, "missing"));
         PlayerAssets assets = new PlayerAssets();
         assets.addCurrency(1000);
         PurchaseSystem purchases = new PurchaseSystem(assets, catalog);

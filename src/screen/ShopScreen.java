@@ -16,12 +16,12 @@ public class ShopScreen extends Screen {
     public static final int RETURN_TO_MAIN_MENU = 1;
 
     private final ShopController controller;
-    private final List<ShopProduct> items = new ArrayList<ShopProduct>();
+    private final List<ShopProduct> upgrades = new ArrayList<ShopProduct>();
     private final List<ShopProduct> unlocks = new ArrayList<ShopProduct>();
     private PlayerAssetsState assets;
-    /** 0: items, 1: permanent unlocks, 2: footer actions. */
+    /** 0: stat upgrades, 1: permanent unlocks, 2: footer actions. */
     private int selectedSection;
-    private int itemIndex;
+    private int upgradeIndex;
     private int unlockIndex;
     /** 0: Back, 1: Retry save (only while a save is pending). */
     private int selectedAction;
@@ -42,13 +42,13 @@ public class ShopScreen extends Screen {
     }
 
     private void refreshProducts() {
-        items.clear();
+        upgrades.clear();
         unlocks.clear();
         for (ShopProduct product : controller.getProducts()) {
-            if (product.getCategory() == Category.INVENTORY) items.add(product);
+            if (product.getCategory() == Category.UPGRADE) upgrades.add(product);
             else unlocks.add(product);
         }
-        itemIndex = Math.max(0, Math.min(itemIndex, items.size() - 1));
+        upgradeIndex = Math.max(0, Math.min(upgradeIndex, upgrades.size() - 1));
         unlockIndex = Math.max(0, Math.min(unlockIndex, unlocks.size() - 1));
     }
 
@@ -63,8 +63,8 @@ public class ShopScreen extends Screen {
     public void initialize() {
         refreshProducts();
         assets = controller.snapshot();
-        selectedSection = !items.isEmpty() ? 0 : !unlocks.isEmpty() ? 1 : 2;
-        itemIndex = 0;
+        selectedSection = !upgrades.isEmpty() ? 0 : !unlocks.isEmpty() ? 1 : 2;
+        upgradeIndex = 0;
         unlockIndex = 0;
         selectedAction = 0;
         lastResult = null;
@@ -136,13 +136,13 @@ public class ShopScreen extends Screen {
     private void moveSection(int direction) {
         do {
             selectedSection = (selectedSection + direction + 3) % 3;
-        } while ((selectedSection == 0 && items.isEmpty())
+        } while ((selectedSection == 0 && upgrades.isEmpty())
                 || (selectedSection == 1 && unlocks.isEmpty()));
     }
 
     private void moveWithinSection(int direction) {
         if (selectedSection == 0) {
-            itemIndex = (itemIndex + direction + items.size()) % items.size();
+            upgradeIndex = (upgradeIndex + direction + upgrades.size()) % upgrades.size();
         } else if (selectedSection == 1) {
             unlockIndex = (unlockIndex + direction + unlocks.size()) % unlocks.size();
         } else if (controller.getSaveStatus() == SaveStatus.FAILED) {
@@ -151,11 +151,10 @@ public class ShopScreen extends Screen {
     }
 
     private void buySelectedProduct() {
-        ShopProduct product = selectedSection == 0 ? items.get(itemIndex) : unlocks.get(unlockIndex);
+        ShopProduct product = selectedSection == 0 ? upgrades.get(upgradeIndex) : unlocks.get(unlockIndex);
         // Refresh before the ownership check in case another game-loop action changed assets.
         assets = controller.snapshot();
-        if (product.getCategory() == Category.UNLOCKABLE
-                && assets.getUnlockedContentIds().contains(product.getId())) {
+        if (assets.getUnlockedContentIds().contains(product.getId())) {
             lastResult = PurchaseResult.ALREADY_UNLOCKED;
         } else {
             lastResult = controller.purchase(product.getId());
@@ -180,8 +179,8 @@ public class ShopScreen extends Screen {
 
     protected void draw() {
         drawManager.initDrawing(this);
-        drawManager.drawShop(this, items, unlocks, assets, selectedSection,
-                itemIndex, unlockIndex, selectedAction,
+        drawManager.drawShop(this, upgrades, unlocks, assets, selectedSection,
+                upgradeIndex, unlockIndex, selectedAction,
                 resultMessage(lastResult), lastResult == PurchaseResult.SUCCESS,
                 controller.getSaveStatus());
         drawManager.completeDrawing(this);
@@ -195,8 +194,6 @@ public class ShopScreen extends Screen {
         case ALREADY_UNLOCKED: return "Already owned. No credits spent.";
         case INVALID_ITEM_ID: return "Invalid product. Nothing purchased.";
         case CATEGORY_MISMATCH: return "Unknown product or wrong category.";
-        case INVALID_QUANTITY: return "Invalid quantity. Nothing purchased.";
-        case INTEGER_OVERFLOW_DETECTED: return "Purchase exceeds the asset limit.";
         case ITEM_NOT_AVAILABLE: return "This product is unavailable.";
         default: return "Purchase could not be completed.";
         }
