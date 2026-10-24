@@ -21,4 +21,4 @@ The asset save format retains balance, permanent IDs and legacy item quantities.
 
 ## Verification
 
-Run `.\gradlew.bat check` on Windows or `sh ./gradlew check` on macOS/Linux. Tests cover both shop rows, tier prerequisites, repeat purchases, save failures/retries and reloads. `previewUpgrades` runs the game with isolated saves and a one-time test balance; see the upgrade guide for controls.
+Run `.\gradlew.bat check` on Windows or `sh ./gradlew check` on macOS/Linux. Tests cover both shop rows, tier prerequisites, repeat purchases, save failures/retries and reloads. Use the existing `run` task or **Invaders - Run** in IntelliJ to try the upgrades in Campaign.

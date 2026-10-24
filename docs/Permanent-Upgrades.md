@@ -12,25 +12,21 @@ These are provisional balance values in [`PermanentUpgrade`](../src/currency/Per
 
 Campaign clears now award 50 Credits on Easy, 100 on Normal and 200 on Hard, using the difficulty captured for that stage. Each attempt pays once and saves immediately; replaying a stage in a new run can earn another reward. Failed stages, incomplete waves, custom levels and Infinite mode do not grant this bonus. Enemy-type rewards remain pending coordination.
 
-For normal play, run `./gradlew.bat run` on Windows or `sh ./gradlew run` on macOS/Linux. Clear Campaign stages, return to the Shop and spend the earned Credits. The preview below provides a separate starting balance for quick testing.
+## Run and try it
 
-## Try it
-
-With JDK 17 or newer, run:
+With JDK 17 or newer, start **Invaders - Run** in IntelliJ, or use the existing run task:
 
 ```powershell
-.\gradlew.bat previewUpgrades
+.\gradlew.bat run
 ```
 
-On macOS/Linux: `sh ./gradlew previewUpgrades`. IntelliJ also has **Invaders - Upgrade Preview**.
+On macOS/Linux: `sh ./gradlew run`.
 
-1. Open **Shop**. The upper **Upgrades** row contains Hull, Engine and Reloader. Use Left/Right to select an upgrade and Space/Enter to buy the next level. Each new key press buys at most one level.
-2. Return to the menu and start **Campaign** with any ship. Hull increases starting/max lives; Engine and Reloader increase movement and firing speed.
-3. Exit and rerun the preview to check that purchased levels and the remaining balance are restored.
+1. Clear Campaign stages to earn Credits. Open **Shop** from the main menu.
+2. Use Left/Right in the upper **Upgrades** row to select Hull, Engine or Reloader, then Space/Enter to buy the next level. Each new key press buys at most one level.
+3. Start a new Campaign to use the purchased bonuses. Exit and run the game again to check that purchased levels and the remaining balance are restored.
 
-The preview keeps the existing lower-row unlock samples (Unlock A, Ship B and Ship C). These sample purchases record ownership only; actual ship products, prices and Hangar access rules are unchanged.
-
-The preview starts with 3,000 Credits once and keeps saves under `build/upgrade-preview/`. Preview controls/audio/gameplay settings stay in memory and reset on exit; normal saves and preferences are separate. `clean` resets the preview and its test Credits; it does not reset normal development saves. Prices and the production balance are not changed by the preview.
+The existing `shop.ShopPreview.main` test helper shows the lower-row samples (Unlock A, Ship B and Ship C) with an isolated temporary save. Sample purchases record ownership only; actual ship products, prices and Hangar access rules are unchanged.
 
 ## Integration and checks
 
