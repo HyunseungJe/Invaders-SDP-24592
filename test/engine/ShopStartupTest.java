@@ -238,6 +238,29 @@ class ShopStartupTest {
         assertEquals(1, restored.getItemQuantity(ShopTestFixtures.CONSUMABLE));
     }
 
+    @Test
+    void campaignRewardsUseTheShopsDefaultSaveAndSurviveReload() throws Exception {
+        if (!isolatedProcess) {
+            runIsolated("campaign-reward");
+            return;
+        }
+        PlayerAssets shared = new PlayerAssets();
+        ShopController shop = Core.initializeShop(shared, files);
+        CampaignRewards rewards = new CampaignRewards(shared, files);
+        event.GameplayEventPublisher events = new event.GameplayEventPublisher();
+        try (CampaignRewards.StageSubscription subscription = rewards.subscribe(events, 1)) {
+            events.publish(new event.LevelCompletedEvent(1, GameplayConfig.NORMAL));
+        }
+        assertEquals(100, shop.snapshot().getBalance());
+        assertEquals(100, files.loadPlayerAssets().getBalance());
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase("upgrade.hull.1"));
+        PlayerAssets restored = new PlayerAssets();
+        Core.initializeShop(restored, files);
+        assertEquals(0, restored.getBalance());
+        assertTrue(restored.isUnlocked("upgrade.hull.1"));
+        assertTrue(Files.isRegularFile(save));
+    }
+
     private void runIsolated(String scenario) throws Exception {
         // Default saves sit beside the compiled classes, so a new working directory alone is not enough.
         Path source = codeLocation(FileManager.class);
@@ -326,6 +349,9 @@ class ShopStartupTest {
             break;
         case "consumption-reward-retry":
             test.consumptionSaveRetryIncludesSettledRewardsAndKeepsNewRewardsPending();
+            break;
+        case "campaign-reward":
+            test.campaignRewardsUseTheShopsDefaultSaveAndSurviveReload();
             break;
         default:
             throw new IllegalArgumentException("Unknown storage test: " + args[1]);

@@ -119,6 +119,8 @@ public final class Core {
 			return;
 		}
 
+		CampaignRewards campaignRewards = new CampaignRewards(playerAssets, getFileManager());
+
 		recordsService = new RecordsService(new java.io.File(System.getProperty("user.home"),
 				".space-invaders/records-achievements.properties").toPath());
 		registerRecordsShutdownHook(recordsService);
@@ -177,8 +179,10 @@ public final class Core {
 								runSession, campaignUpgrades);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
-						frame.setScreen(currentScreen);
+						runCampaignStage((GameScreen) currentScreen, campaignRewards,
+								screen -> frame.setScreen(screen));
 						LOGGER.info("Closing game screen.");
+						resolveCampaignRewards(campaignRewards, false);
 
 						boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
 						gameState = ((GameScreen) currentScreen).getGameState();
@@ -235,6 +239,7 @@ public final class Core {
 					// Shop.
 					currentScreen = new ShopScreen(width, height, FPS, shopController);
 					returnCode = frame.setScreen(currentScreen);
+					resolveCampaignRewards(campaignRewards, false);
 					break;
 				case 11: {
 					currentScreen = new HangarMenuScreen(width, height, FPS);
@@ -308,6 +313,9 @@ public final class Core {
 					break;
 			}
 
+			if (returnCode == 0 && !resolveCampaignRewards(campaignRewards, true)) {
+				returnCode = 1;
+			}
 		} while (returnCode != 0);
 
 		recordsService.close();
@@ -316,6 +324,36 @@ public final class Core {
 		fileHandler.flush();
 		fileHandler.close();
 		System.exit(0);
+	}
+
+	/** Registers rewards only for the official Campaign and releases the stage listener on exit. */
+	static void runCampaignStage(final GameScreen screen, final CampaignRewards rewards,
+			final Consumer<GameScreen> runner) {
+		Objects.requireNonNull(runner, "runner");
+		try (CampaignRewards.StageSubscription subscription = rewards.subscribe(
+				screen.getGameplayEvents(), screen.getGameState().getLevel())) {
+			runner.accept(screen);
+		}
+	}
+
+	private static boolean resolveCampaignRewards(final CampaignRewards rewards, final boolean exiting) {
+		SettlementResult result = rewards.retryPendingRewards();
+		while (result != SettlementResult.SUCCESS) {
+			String message = result == SettlementResult.SETTLEMENT_FAILED
+					? "Your balance is full. Earned Credits remain pending in this session.\n"
+							+ "Spend Credits in the Shop to make room."
+					: "Your Credits are available in this session, but progress could not be saved.";
+			if (exiting) message += "\nExiting now will lose unsaved progress or pending Credits.";
+			String[] options = exiting
+					? new String[] { "Retry", "Return to menu", "Exit without saving" }
+					: new String[] { "Retry", "Continue" };
+			int choice = JOptionPane.showOptionDialog(frame, message,
+					"Unable to save rewards", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.WARNING_MESSAGE, null, options, "Retry");
+			if (choice != 0) return !exiting || choice == 2;
+			result = rewards.retryPendingRewards();
+		}
+		return true;
 	}
 
 	/** Loads shared assets before creating the session's shop controller. */
