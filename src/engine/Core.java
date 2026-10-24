@@ -157,7 +157,8 @@ public final class Core {
 				// The selected ship decides how many lives the run starts with.
 				LOGGER.info("Selected ship: " + selectedShip.getName());
 
-					gameState = new GameState(1, 0, selectedShip.getMaxLives(),
+					CampaignUpgrades campaignUpgrades = CampaignUpgrades.from(playerAssets.snapshot());
+					gameState = new GameState(1, 0, campaignUpgrades.getMaxLives(selectedShip),
 							0, 0);
 
 					// Game & score.
@@ -167,13 +168,13 @@ public final class Core {
 						// One extra live every few levels.
 						boolean bonusLife = gameState.getLevel()
 								% EXTRA_LIFE_FRECUENCY == 0
-								&& gameState.getLivesRemaining() < selectedShip.getMaxLives();
+								&& gameState.getLivesRemaining() < campaignUpgrades.getMaxLives(selectedShip);
 
 						currentScreen = new GameScreen(gameState,
 								applyDifficulty(CampaignStageData
 										.getStageSettings(gameState.getLevel())),
 								bonusLife, width, height, FPS, selectedShip,
-								runSession);
+								runSession, campaignUpgrades);
 						LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 								+ " game screen at " + FPS + " fps.");
 						frame.setScreen(currentScreen);
