@@ -11,8 +11,8 @@ import java.util.Map;
  *
  * <p>Responsibility split:
  * <ul>
- *   <li>CampaignRewards receives level completion events and forwards their
- *       difficulty here. Enemy-type reward integration remains separate.</li>
+ *   <li>CampaignRewards forwards enemy classifications during play and the
+ *       completed stage's difficulty after its screen exits.</li>
  *   <li>Rewards are added to a pending amount. The player's balance changes
  *       only when {@link #settle()} succeeds.</li>
  *   <li>This class does not know whether a stage succeeded or failed. The caller
@@ -63,8 +63,14 @@ public class RewardSystem {
         initializeDefaultRewards();
     }
 
-    /** Registers the default per-enemy rewards (BASIC 10, FAST 25, TANK 50). */
+    /** Campaign classifications and legacy names; each defeat pays the full amount. */
     private void initializeDefaultRewards() {
+        enemyRewards.put("A", 10);
+        enemyRewards.put("B", 15);
+        enemyRewards.put("C", 20);
+        enemyRewards.put("BONUS", 20);
+        enemyRewards.put("BOSS_A", 50);
+        enemyRewards.put("BOSS_B", 50);
         enemyRewards.put("BASIC", 10);
         enemyRewards.put("FAST", 25);
         enemyRewards.put("TANK", 50);
