@@ -57,10 +57,10 @@ Currency System. Our team is responsible for managing the in-game currency econo
    Use the existing `LevelCompletedEvent` with the completed level and difficulty. HanCode awards and saves the clear bonus after the Campaign stage screen finishes.
 
 2. Player & Enemy Ship Variety (KimchiBaguette):
-   Use the existing ship baseline-stat API for permanent Campaign upgrades. Coordinate stable enemy-type data for defeat rewards, and agree on ship prices and access rules before enabling paid unlocks.
+   Use the existing ship baseline-stat API for permanent Campaign upgrades and typed `EnemyDefeatedEvent` data for defeat rewards. HanCode manages ship purchase and access rules through the shared Shop catalog.
 
 3. Gameplay HUD (friends):
-   HanCode provides `Core.getAssetHudSnapshot().getCredits()` for the balance plus pending rewards from finished stage screens. The current stage's clear bonus is excluded while its screen is active. The HUD team handles display and layout.
+   HanCode provides `Core.getAssetHudSnapshot().getCredits()` for the balance plus unpaid defeat rewards earned during play. The current stage's clear bonus is excluded while its screen is active. The HUD team handles display and layout.
 
 ---
 
@@ -68,9 +68,9 @@ Currency System. Our team is responsible for managing the in-game currency econo
 
 | Area | Implemented components | Remaining integration |
 | --- | --- | --- |
-| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), Main Menu entry and startup loading of shared assets. Purchases report save failures separately and allow a save-only retry. | Agree on ship prices and access rules before enabling paid unlocks. |
+| Shop | [ShopScreen](../src/screen/ShopScreen.java), [ShopController](../src/shop/ShopController.java), startup loading and Speedster purchase/Hangar access. Purchases report save failures separately and allow a save-only retry. | Review the provisional Speedster price. |
 | Permanent upgrades | HanCode implements [Hull, Engine and Reloader](../docs/Permanent-Upgrades.md) in the upper Shop row. Three purchase levels persist and apply to subsequent Campaign runs. | Review provisional prices and bonuses. |
-| Rewards | [CampaignRewards](../src/engine/CampaignRewards.java) connects Campaign clears to [RewardSystem](../src/currency/RewardSystem.java), shared assets, saving and retry handling. | Coordinate and connect enemy-type rewards. |
+| Rewards | [CampaignRewards](../src/engine/CampaignRewards.java) connects typed defeats and Campaign clears to [RewardSystem](../src/currency/RewardSystem.java), the HUD balance API, saving and retry handling. | Review reward balance through playtesting. |
 | HUD | [AssetHudSnapshot](../src/hud/AssetHudSnapshot.java) exposes the Credits total without consumable slots. | Connect the Credits display with the HUD team. |
 
-The production catalog contains the three permanent stat upgrades and lists all three ships as available without purchase. Default ship availability is not saved as ownership, and Hangar access rules are unchanged. Separate unlock samples remain in tests and previews. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.
+The production catalog contains the three permanent stat upgrades and all three ships. Speedster requires a 200-Credit purchase; Standard Ship and Heavy Tank remain free. Hangar uses the catalog and saved ownership for access. Separate unlock samples remain in tests and previews. Consumable purchasing and use services have been removed, while legacy save quantities are retained for compatibility.

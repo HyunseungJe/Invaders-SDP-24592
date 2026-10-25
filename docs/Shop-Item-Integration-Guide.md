@@ -9,13 +9,15 @@ The existing Shop layout is retained. **Upgrades** replaces the upper consumable
 - `PurchaseSystem` validates the ID, prerequisites, existing ownership and balance. Successful purchases deduct Credits and record a permanent unlock; rejections change nothing.
 - Each upgrade card advances to its next level after purchase. All three levels owned displays `MAX`. `Core` captures the purchased bonuses when starting a Campaign.
 
-Standard Ship, Speedster and Heavy Tank appear in the lower row as available without purchase. Confirming a card does not deduct Credits, grant ownership or write a save; all three remain selectable in Hangar. The entries use `ship.standard`, `ship.speedster` and `ship.tank`. Paid access requires agreed prices, existing-player policy and matching Hangar checks; changing a shop entry alone does not restrict ship selection. Existing saved ownership is retained.
+Standard Ship and Heavy Tank are free; Speedster costs 200 Credits in the lower row. The entries use `ship.standard`, `ship.speedster` and `ship.tank`. Hangar checks `Core.getShopController().isShipAvailable(type)` against the same catalog and saved ownership, for both keyboard and mouse confirmation. Existing saved unlocks remain valid. Free availability does not create an ownership entry or write a save.
 
 ## Saves and rewards
 
 `ShopController` saves after a successful purchase. Check `getSaveStatus()` separately from `PurchaseResult`. If saving fails, the purchase remains in memory; `retrySave()` writes the latest assets without charging or granting ownership again.
 
-Campaign `LevelCompletedEvent` subscriptions record a clear; `CampaignRewards` awards and saves its bonus after the game screen finishes, including its end-of-stage delay. Save retries use the same shared assets as the Shop. Enemy-type rewards are not connected yet.
+`CampaignRewards` subscribes to each official Campaign screen. `EnemyDefeatedEvent.getEnemyType()` selects the reward: A/B/C = 10/15/20, BONUS = 20, BOSS_A/BOSS_B = 50 Credits. The active run ID and opaque event ID prevent duplicate payouts; `UNKNOWN` and other runs are ignored. Defeat rewards accumulate immediately and settle when the screen exits, including on failure.
+
+`LevelCompletedEvent` records a clear, but its bonus is added only after the game screen and end-of-stage delay finish. Save retries use the same shared assets as the Shop without paying twice. Custom levels and Infinite mode do not subscribe to Campaign rewards.
 
 The asset save format retains balance, permanent IDs and legacy item quantities. Legacy quantities are preserved on load/save only; consumable purchase and use services have been removed. Field pickups and temporary effects remain unchanged and do not use this Shop inventory.
 
@@ -23,7 +25,7 @@ The asset save format retains balance, permanent IDs and legacy item quantities.
 
 On the gameplay thread after startup, read `long credits = Core.getAssetHudSnapshot().getCredits();`. Each call returns an immutable snapshot of the existing session; request a new snapshot when updating the HUD.
 
-Credits combine the current balance and unpaid rewards from finished stage screens, including queued completions. The current stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
+Credits combine the current balance and unpaid rewards, including defeats earned during play. The current stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
 
 Reading does not load, save or settle rewards. Calling before assets and rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains with the HUD team.
 
