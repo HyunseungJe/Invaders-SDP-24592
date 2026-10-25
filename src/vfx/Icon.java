@@ -52,6 +52,20 @@ public enum Icon {
 			".##..##.",
 			"..####.."),
 
+	/** Locked content: a padlock with a keyhole. */
+	LOCK(GameColors.ICON_UI,
+			"...###...",
+			"..#...#..",
+			"..#...#..",
+			"..#...#..",
+			".#######.",
+			"#########",
+			"####.####",
+			"###...###",
+			"####.####",
+			"#########",
+			".#######."),
+
 	/** Shop: a shopping bag. */
 	SHOP("WG", new Color[] { GameColors.ICON_UI, GameColors.ICON_COIN },
 			"...WWW...",

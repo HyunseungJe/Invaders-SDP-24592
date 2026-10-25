@@ -2010,7 +2010,11 @@ public final class DrawManager {
             boolean isSelected = (i == selectedIndex);
             boolean available = Core.getShopController().isShipAvailable(type);
 
-            if (isSelected) {
+            if (!available) {
+                int scale = 3;
+                drawIcon(Icon.LOCK, screen.getWidth() / 2 - Icon.LOCK.getWidth() * scale / 2,
+                        startY + i * spacing - 50, scale, Color.GRAY);
+            } else if (isSelected) {
                 entity.Ship previewShip = new entity.Ship(screen.getWidth() / 2 - 13,
                         startY + i * spacing - 40, type);
                 drawEntity(previewShip, screen.getWidth() / 2 - 13, startY + i * spacing - 40);
