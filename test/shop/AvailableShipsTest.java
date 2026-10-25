@@ -20,7 +20,7 @@ class AvailableShipsTest {
     @TempDir Path temp;
 
     @Test
-    void allShipsAreListedWithoutChargingGrantingOwnershipOrCreatingASave() {
+    void onlySpeedsterRequiresAPurchaseAndBrowsingNeverCreatesASave() {
         PlayerAssets assets = new PlayerAssets();
         ShopTestFixtures.SaveFile save = save();
         ShopController shop = ShopTestFixtures.upgradeController(assets, save);
@@ -32,7 +32,15 @@ class AvailableShipsTest {
             ShopProduct product = ships.get(index);
             assertSame(ShipType.values()[index], product.getShipType());
             assertEquals(product.getShipType().getName(), product.getName());
+            if (product.getShipType() == ShipType.SPEEDSTER) {
+                assertFalse(product.isAvailableByDefault());
+                assertFalse(shop.isShipAvailable(ShipType.SPEEDSTER));
+                assertEquals(200, product.getPrice());
+                assertEquals(PurchaseResult.INSUFFICIENT_FUNDS, shop.purchase(product.getId()));
+                continue;
+            }
             assertTrue(product.isAvailableByDefault());
+            assertTrue(shop.isShipAvailable(product.getShipType()));
             assertEquals(0, product.getPrice());
             assertEquals(PurchaseResult.ALREADY_UNLOCKED, shop.purchase(product.getId()));
             assertEquals(PurchaseResult.ALREADY_UNLOCKED, shop.purchase(product.getId()));
@@ -41,6 +49,47 @@ class AvailableShipsTest {
         assertTrue(assets.snapshot().getUnlockedContentIds().isEmpty());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, shop.getSaveStatus());
         assertFalse(Files.exists(save.getPath()));
+        assertFalse(shop.isShipAvailable(null));
+    }
+
+    @Test
+    void purchasingSpeedsterPersistsHangarAccessWithoutChargingAgain() throws Exception {
+        PlayerAssets assets = new PlayerAssets();
+        assertTrue(assets.restore(new PlayerAssetsState(200, null, null)));
+        ShopTestFixtures.SaveFile save = save();
+        ShopController shop = ShopTestFixtures.upgradeController(assets, save);
+        assertFalse(shop.isShipAvailable(ShipType.SPEEDSTER));
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase("ship.speedster"));
+        assertTrue(shop.isShipAvailable(ShipType.SPEEDSTER));
+        assertEquals(0, assets.getBalance());
+
+        PlayerAssets restored = new PlayerAssets();
+        assertTrue(restored.restore(save.load()));
+        ShopController reopened = ShopTestFixtures.upgradeController(restored, save);
+        assertTrue(reopened.isShipAvailable(ShipType.SPEEDSTER));
+        byte[] before = Files.readAllBytes(save.getPath());
+        assertEquals(PurchaseResult.ALREADY_UNLOCKED, reopened.purchase("ship.speedster"));
+        assertEquals(0, reopened.getBalance());
+        assertArrayEquals(before, Files.readAllBytes(save.getPath()));
+    }
+
+    @Test
+    void failedSaveKeepsSpeedsterUsableAndRetryPreservesTheUnlock() throws Exception {
+        PlayerAssets assets = new PlayerAssets();
+        assertTrue(assets.restore(new PlayerAssetsState(200, null, null)));
+        ShopTestFixtures.SaveFile save = save();
+        Path destination = save.getPath();
+        Path blocker = Files.write(temp.resolve("blocker"), new byte[] {1});
+        save.setPath(blocker.resolve("assets.properties"));
+        ShopController shop = ShopTestFixtures.upgradeController(assets, save);
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase("ship.speedster"));
+        assertEquals(ShopController.SaveStatus.FAILED, shop.getSaveStatus());
+        assertTrue(shop.isShipAvailable(ShipType.SPEEDSTER));
+        assertEquals(0, assets.getBalance());
+        save.setPath(destination);
+        assertTrue(shop.retrySave());
+        assertEquals(0, save.load().getBalance());
+        assertTrue(save.load().getUnlockedContentIds().contains("ship.speedster"));
     }
 
     @Test
@@ -66,7 +115,7 @@ class AvailableShipsTest {
         assertFalse(restored.isUnlocked("ship.speedster"));
         assertEquals(4, restored.snapshot().getItemQuantities().get("legacy.item"));
         ShopController reopened = ShopTestFixtures.upgradeController(restored, save);
-        assertEquals(3, reopened.getProducts().stream().filter(ShopProduct::isAvailableByDefault).count());
+        assertEquals(2, reopened.getProducts().stream().filter(ShopProduct::isAvailableByDefault).count());
     }
 
     @Test
@@ -79,10 +128,13 @@ class AvailableShipsTest {
                 ShopProduct.ship(ShipType.TANK, false, 300));
         ShopController shop = ShopTestFixtures.controller(assets, save, definitions);
 
+        assertTrue(shop.isShipAvailable(ShipType.TANK));
+        assertFalse(shop.isShipAvailable(ShipType.SPEEDSTER));
         assertEquals(PurchaseResult.ALREADY_UNLOCKED, shop.purchase("ship.tank"));
         assertEquals(500, assets.getBalance());
         assertFalse(Files.exists(save.getPath()));
         assertEquals(PurchaseResult.SUCCESS, shop.purchase("ship.speedster"));
+        assertTrue(shop.isShipAvailable(ShipType.SPEEDSTER));
         assertEquals(300, save.load().getBalance());
         assertTrue(save.load().getUnlockedContentIds().containsAll(
                 Arrays.asList("ship.tank", "ship.speedster")));

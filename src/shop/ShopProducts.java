@@ -22,7 +22,8 @@ public final class ShopProducts {
             }
         }
         for (ShipType ship : ShipType.values()) {
-            products.add(ShopProduct.ship(ship, true, 0));
+            boolean available = ship != ShipType.SPEEDSTER;
+            products.add(ShopProduct.ship(ship, available, available ? 0 : 200));
         }
         return Collections.unmodifiableList(products);
     }

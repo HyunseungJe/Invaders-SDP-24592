@@ -8,6 +8,7 @@ import currency.ShopCatalog;
 import currency.ShopCatalog.Category;
 import engine.Core;
 import engine.FileManager;
+import entity.ShipType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,6 +70,17 @@ public final class ShopController {
     /** Current spendable Credits, without copying ownership or legacy save data. */
     public synchronized int getBalance() {
         return assets.getBalance();
+    }
+
+    /** Uses the same ship availability and saved ownership as the Shop. */
+    public synchronized boolean isShipAvailable(ShipType type) {
+        if (type == null) return false;
+        for (ShopProduct product : products) {
+            if (product.getShipType() == type) {
+                return product.isAvailableByDefault() || assets.isUnlocked(product.getId());
+            }
+        }
+        return false;
     }
 
     public synchronized PlayerAssetsState snapshot() {

@@ -1912,7 +1912,8 @@ public final class DrawManager {
     public void drawShipSelection(final Screen screen, final ShipType[] shipTypes,
             final int selectedIndex) {
         String titleString = "SELECT SHIP";
-        String instructionsString = "SPACE: SELECT   ESC: BACK";
+        String instructionsString = Core.getShopController().isShipAvailable(shipTypes[selectedIndex])
+                ? "SPACE: SELECT   ESC: BACK" : "UNLOCK IN SHOP   ESC: BACK";
 
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredRegularString(screen, titleString, screen.getHeight() / 6);
@@ -1923,6 +1924,7 @@ public final class DrawManager {
         for (int i = 0; i < shipTypes.length; i++) {
             ShipType type = shipTypes[i];
             boolean isSelected = (i == selectedIndex);
+            boolean available = Core.getShopController().isShipAvailable(type);
 
             if (isSelected) {
                 entity.Ship previewShip = new entity.Ship(screen.getWidth() / 2 - 13,
@@ -1930,7 +1932,8 @@ public final class DrawManager {
                 drawEntity(previewShip, screen.getWidth() / 2 - 13, startY + i * spacing - 40);
             }
 
-            String name = (isSelected ? "> " : "") + type.getName() + (isSelected ? " <" : "");
+            String name = (isSelected ? "> " : "") + type.getName()
+                    + (available ? "" : " [LOCKED]") + (isSelected ? " <" : "");
             String stats = String.format("SPEED: %d | HP: %d | RELOAD: %dMS",
                     type.getSpeed(), type.getMaxLives(), type.getShootingInterval());
 

@@ -57,7 +57,8 @@ public final class ShopProduct {
     public static ShopProduct ship(ShipType type, boolean availableByDefault, int price) {
         if (type == null) throw new IllegalArgumentException("Ship type is required.");
         return new ShopProduct("ship." + type.name().toLowerCase(Locale.ROOT),
-                type.getName(), Category.UNLOCKABLE, price, "Select in Hangar.", null,
+                type.getName(), Category.UNLOCKABLE, price,
+                availableByDefault ? "Select in Hangar." : "Unlock for Hangar.", null,
                 type, availableByDefault);
     }
 

@@ -81,9 +81,7 @@ public class ShipSelectionScreen extends Screen {
                 && hoveredIndex != -1
                 && this.inputDelay.checkFinished()) {
             this.selectedIndex = hoveredIndex;
-            this.returnCode = SHIP_SELECTED;
-            this.isRunning = false;
-            AudioManager.playSFX("audio/sfx/menu_select.wav");
+            confirmSelection();
         }
 
         draw();
@@ -108,14 +106,19 @@ public class ShipSelectionScreen extends Screen {
             AudioManager.playSFX("audio/sfx/menu_move.wav");
         } else if (this.inputManager.isKeyDown(KeyEvent.VK_SPACE)
                 || this.inputManager.isKeyDown(KeyEvent.VK_ENTER)) {
-            this.returnCode = SHIP_SELECTED;
-            this.isRunning = false;
-            AudioManager.playSFX("audio/sfx/menu_select.wav");
+            confirmSelection();
         } else if (this.inputManager.isKeyDown(KeyEvent.VK_ESCAPE)) {
             this.returnCode = RETURN_TO_HANGAR_MENU;
             this.isRunning = false;
             AudioManager.playSFX("audio/sfx/menu_back.wav");
         }
+    }
+
+    private void confirmSelection() {
+        if (!Core.getShopController().isShipAvailable(getSelectedShip())) return;
+        this.returnCode = SHIP_SELECTED;
+        this.isRunning = false;
+        AudioManager.playSFX("audio/sfx/menu_select.wav");
     }
 
     private void draw() {
