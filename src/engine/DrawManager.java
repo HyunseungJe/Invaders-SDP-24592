@@ -60,6 +60,56 @@ public final class DrawManager {
                 + fontBigMetrics.getAscent()) / 2;
     }
 
+    /**
+     * Centers the complete achievement result block above the input prompt.
+     *
+     * @param screen
+     *                    Screen to draw on.
+     * @param isNewRecord
+     *                    If the score is a new high score.
+     * @param failedStage
+     *                    Failed stage number, or zero when no stage failed.
+     * @param achievementCount
+     *                    Number of newly unlocked achievements.
+     * @return Baseline for the game-over title.
+     */
+    private int getAchievementResultsTitleY(final Screen screen,
+            final boolean isNewRecord, final int failedStage,
+            final int achievementCount) {
+        int spacing = fontRegularMetrics.getHeight();
+        int lastLineOffset = 0;
+
+        if (failedStage > 0)
+            lastLineOffset += spacing;
+
+        // Gap before the four result rows, including the increment after the
+        // last row used by drawAchievementResults.
+        lastLineOffset += spacing * 2;
+        lastLineOffset += spacing * 4;
+
+        if (isNewRecord) {
+            // Gap before the three name-input rows and the increment after
+            // that block.
+            lastLineOffset += spacing;
+            lastLineOffset += spacing * 3;
+        }
+
+        // Achievement heading followed by one row per unlocked achievement.
+        lastLineOffset += spacing;
+        lastLineOffset += spacing * achievementCount;
+
+        int promptY = screen.getHeight() - spacing;
+        int availableTop = spacing;
+        int availableBottom = promptY - spacing * 2;
+        int blockHeight = fontBigMetrics.getAscent() + lastLineOffset
+                + fontRegularMetrics.getDescent();
+        int availableHeight = availableBottom - availableTop;
+        int blockTop = availableTop
+                + Math.max(0, (availableHeight - blockHeight) / 2);
+
+        return blockTop + fontBigMetrics.getAscent();
+    }
+
     /** Singleton instance of the class. */
     private static DrawManager instance;
     /** Current frame. */
@@ -334,6 +384,39 @@ public final class DrawManager {
         int scoreX = screen.getWidth() - 60;
         drawIcon(Icon.SCORE, scoreX - Icon.SCORE.getWidth() * 2 - 6, 12, 2);
         backBufferGraphics.drawString(scoreString, scoreX, 25);
+    }
+
+    /** K, M, B, T, Q suffixes for shortened credits. */
+    private static final String[] CREDIT_SUFFIXES = { "", "K", "M", "B", "T", "Q" };
+
+    /**
+     * Draws credits with a coin icon right-aligned just left of the score.
+     * Up to 4 digits fit between the level label and the score.
+     */
+    public void drawCredits(final Screen screen, final long credits) {
+        backBufferGraphics.setFont(fontRegular);
+        backBufferGraphics.setColor(Color.WHITE);
+        String text = shortenCredits(credits);
+        // Ends 8px left of the score icon drawn by drawScore().
+        int textX = screen.getWidth() - 60 - Icon.SCORE.getWidth() * 2 - 14
+                - backBufferGraphics.getFontMetrics().stringWidth(text);
+        drawIcon(Icon.COIN, textX - 4 - Icon.COIN.getWidth() * 2, 12, 2);
+        backBufferGraphics.drawString(text, textX, 25);
+    }
+
+    /** 5+ digits become 12.3K or 123K, rounded down so it never shows more. */
+    private static String shortenCredits(final long credits) {
+        if (credits < 10000)
+            return Long.toString(credits);
+        long unit = 1;
+        int suffix = 0;
+        while (suffix < CREDIT_SUFFIXES.length - 1 && credits / unit >= 1000) {
+            unit *= 1000;
+            suffix++;
+        }
+        long whole = credits / unit;
+        return whole + (whole < 100 ? "." + credits % unit / (unit / 10) : "")
+                + CREDIT_SUFFIXES[suffix];
     }
 
     /**
@@ -1588,7 +1671,8 @@ public final class DrawManager {
             final List<Achievement> achievements, final boolean acceptsInput,
             final int failedStage, final boolean gameCleared, final String modeLabel) {
         int spacing = fontRegularMetrics.getHeight();
-        int y = fontBigMetrics.getHeight() + 10;
+        int y = getAchievementResultsTitleY(screen, isNewRecord, failedStage,
+                achievements.size());
         backBufferGraphics.setColor(Color.GREEN);
         drawCenteredBigString(screen, gameCleared ? "Game Cleared!" : "Game Over", y);
         if (failedStage > 0) {

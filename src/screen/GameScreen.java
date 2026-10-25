@@ -900,6 +900,11 @@ public class GameScreen extends Screen {
 		drawManager.drawLives(this, this.playerStatus.getLives(),
 				this.playerStatus.getMaxLives());
 		drawManager.drawLevel(this, this.level, CampaignStageData.getTotalStages());
+		try { // Includes rewards awaiting settlement; read every frame.
+			drawManager.drawCredits(this, Core.getAssetHudSnapshot().getCredits());
+		} catch (IllegalStateException e) {
+			// Assets are not initialized (e.g. screen-only tests): skip credits.
+		}
 
 		// Item HUD: grenades left, active buffs and their time left.
 		drawManager.drawGrenadeCount(this, this.ship.getGrenadeCount());
