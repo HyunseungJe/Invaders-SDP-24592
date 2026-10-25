@@ -2,19 +2,26 @@ package engine;
 
 import currency.PlayerAssets;
 import currency.RewardSystem;
+import event.DefeatedEnemyType;
+import event.EnemyDefeatedEvent;
 import event.GameplayEventListener;
 import event.GameplayEventPublisher;
 import event.LevelCompletedEvent;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
-/** Campaign clear rewards for one application session; use on the gameplay thread. */
+/** Campaign rewards for one application session; use on the gameplay thread. */
 final class CampaignRewards {
     private final RewardSystem rewards;
     private final RewardSettlementCoordinator settlement;
     private final Deque<Integer> waitingCompletions = new ArrayDeque<Integer>();
+    private final Deque<DefeatedEnemyType> waitingDefeats = new ArrayDeque<DefeatedEnemyType>();
+    private final Set<String> seenDefeats = new HashSet<String>();
+    private String activeRunId;
     private SettlementResult lastResult = SettlementResult.SUCCESS;
 
     CampaignRewards(PlayerAssets assets, FileManager files) {
@@ -24,6 +31,17 @@ final class CampaignRewards {
     CampaignRewards(PlayerAssets assets, FileManager files, Path savePath) {
         rewards = new RewardSystem(assets);
         settlement = new RewardSettlementCoordinator(rewards, assets, files, savePath);
+    }
+
+    /** Starts deduplication for a Campaign run without discarding unpaid rewards. */
+    void startRun(String runId) {
+        if (runId == null || runId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Campaign run ID must not be blank.");
+        }
+        if (!runId.equals(activeRunId)) {
+            activeRunId = runId;
+            seenDefeats.clear();
+        }
     }
 
     StageSubscription subscribe(GameplayEventPublisher events, int level) {
@@ -36,9 +54,12 @@ final class CampaignRewards {
         return lastResult;
     }
 
-    /** Unpaid rewards from stages whose screens have finished, including queued completions. */
+    /** Includes current defeats; a clear bonus is included only after its screen exits. */
     long getPendingCurrency() {
         long pending = rewards.getPendingCurrency();
+        for (DefeatedEnemyType type : waitingDefeats) {
+            pending += rewards.getEnemyReward(type.name());
+        }
         for (int difficulty : waitingCompletions) {
             pending += rewards.getLevelReward(difficulty);
         }
@@ -48,6 +69,16 @@ final class CampaignRewards {
     /** Retries unpaid rewards and saves the latest assets without repeating paid bonuses. */
     SettlementResult retryPendingRewards() {
         if (rewards.getPendingCurrency() > 0) {
+            lastResult = settlement.processSettlement();
+            if (lastResult != SettlementResult.SUCCESS) return lastResult;
+        }
+        // Retain defeats that did not fit the pending amount until settlement makes room.
+        while (!waitingDefeats.isEmpty()) {
+            if (!rewards.rewardEnemy(waitingDefeats.peekFirst().name())) {
+                lastResult = SettlementResult.SETTLEMENT_FAILED;
+                return lastResult;
+            }
+            waitingDefeats.removeFirst();
             lastResult = settlement.processSettlement();
             if (lastResult != SettlementResult.SUCCESS) return lastResult;
         }
@@ -71,13 +102,28 @@ final class CampaignRewards {
     final class StageSubscription implements AutoCloseable, GameplayEventListener<LevelCompletedEvent> {
         private final GameplayEventPublisher events;
         private final int level;
+        private final String runId;
+        private final GameplayEventListener<EnemyDefeatedEvent> defeatListener = this::onEnemyDefeated;
         private Integer completedDifficulty;
         private boolean closed;
 
         private StageSubscription(GameplayEventPublisher events, int level) {
             this.events = events;
             this.level = level;
+            this.runId = activeRunId;
             events.subscribe(LevelCompletedEvent.class, this);
+            events.subscribe(EnemyDefeatedEvent.class, defeatListener);
+        }
+
+        private void onEnemyDefeated(EnemyDefeatedEvent event) {
+            if (closed || completedDifficulty != null || runId == null
+                    || !runId.equals(activeRunId) || !runId.equals(event.getRunId())) return;
+            DefeatedEnemyType type = event.getEnemyType();
+            if (rewards.getEnemyReward(type.name()) == 0
+                    || !seenDefeats.add(event.getEventId())) return;
+            if (!rewards.rewardEnemy(type.name())) {
+                waitingDefeats.addLast(type);
+            }
         }
 
         @Override
@@ -91,12 +137,12 @@ final class CampaignRewards {
             if (closed) return;
             closed = true;
             events.unsubscribe(LevelCompletedEvent.class, this);
-            if (completedDifficulty == null) return;
+            events.unsubscribe(EnemyDefeatedEvent.class, defeatListener);
             // Apply the clear bonus after the game screen, including its end delay, has finished.
-            waitingCompletions.addLast(completedDifficulty);
+            if (completedDifficulty != null) waitingCompletions.addLast(completedDifficulty);
             SettlementResult result = retryPendingRewards();
             if (result != SettlementResult.SUCCESS) {
-                Core.getLogger().warning("Campaign clear reward needs retry: " + result);
+                Core.getLogger().warning("Campaign reward needs retry: " + result);
             }
         }
     }

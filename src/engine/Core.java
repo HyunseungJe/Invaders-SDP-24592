@@ -177,6 +177,7 @@ public final class Core {
 
 					// Game & score.
 					RunSession runSession = new RunSession(UUID.randomUUID().toString());
+					campaignRewards.startRun(runSession.getRunId());
 					recordsService.startRun(runSession.getRunId());
 					do {
 						// One extra live every few levels.
