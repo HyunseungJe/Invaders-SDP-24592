@@ -29,7 +29,7 @@ On the gameplay thread after startup, read `long credits = Core.getAssetHudSnaps
 
 Credits combine the current balance and unpaid Campaign and Endless rewards, including defeats earned during play. The current Campaign stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
 
-Reading does not load, save or settle rewards. Calling before assets and Campaign rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains unchanged; the snapshot alone does not display Credits in Endless.
+Reading does not load, save or settle rewards. Calling before assets and Campaign rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. Campaign and Endless HUDs read this API to display the shared Credits total, including pending defeat rewards.
 
 ## Verification
 

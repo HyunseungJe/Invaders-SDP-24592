@@ -14,7 +14,7 @@ Campaign defeats award A/B/C enemies 10/15/20 Credits, bonus enemies 20, and eit
 
 Campaign clears additionally award 50 Credits on Easy, 100 on Normal and 200 on Hard, using the difficulty captured for that stage. The clear bonus enters the balance only after the game screen and its end-of-stage delay finish. Failed stages and incomplete waves do not grant it. Custom levels and Infinite mode do not earn these Campaign rewards.
 
-Endless awards a provisional **1 Credit per defeat event**, regardless of enemy type, with no clear or difficulty bonus. It uses the existing Endless defeat events and ignores duplicate event IDs within the run. Credits accumulate during play and settle into the same Shop balance when the screen exits after death or Escape. Escape still abandons the run for records, but keeps earned Credits. Offscreen enemies and contact damage without a defeat event do not pay. Pending rewards are included in the HUD balance API; this change does not add drawing to the Endless HUD.
+Endless awards a provisional **1 Credit per defeat event**, regardless of enemy type, with no clear or difficulty bonus. It uses the existing Endless defeat events and ignores duplicate event IDs within the run. Credits accumulate during play and settle into the same Shop balance when the screen exits after death or Escape. Escape still abandons the run for records, but keeps earned Credits. Offscreen enemies and contact damage without a defeat event do not pay. Pending rewards are included in the HUD balance API and displayed by the Endless HUD.
 
 ## Run and try it
 
