@@ -19,15 +19,17 @@ Standard Ship and Heavy Tank are free; Speedster costs 200 Credits in the lower 
 
 `LevelCompletedEvent` records a clear, but its bonus is added only after the game screen and end-of-stage delay finish. Save retries use the same shared assets as the Shop without paying twice. Custom levels and Infinite mode do not subscribe to Campaign rewards.
 
+`EndlessRewards` subscribes separately to each `InfiniteGameScreen` and pays 1 Credit per unique defeat in the active run, including legacy events with `UNKNOWN` type. It grants no clear or difficulty bonus. Death and Escape both settle and save earned Credits; Escape continues to abandon records independently. `Core` retries both modes after Campaign or Endless, after leaving the Shop and before a normal menu exit. Failed settlements stay pending in memory; failed saves retry the latest shared assets without replaying defeats. No event or save-format changes are required.
+
 The asset save format retains balance, permanent IDs and legacy item quantities. Legacy quantities are preserved on load/save only; consumable purchase and use services have been removed. Field pickups and temporary effects remain unchanged and do not use this Shop inventory.
 
 ## HUD balance API
 
 On the gameplay thread after startup, read `long credits = Core.getAssetHudSnapshot().getCredits();`. Each call returns an immutable snapshot of the existing session; request a new snapshot when updating the HUD.
 
-Credits combine the current balance and unpaid rewards, including defeats earned during play. The current stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
+Credits combine the current balance and unpaid Campaign and Endless rewards, including defeats earned during play. The current Campaign stage's clear bonus appears only after its screen finishes. Pending rewards remain in memory for this session and cannot be spent before settlement; the display total can exceed the balance's `int` limit.
 
-Reading does not load, save or settle rewards. Calling before assets and rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains with the HUD team.
+Reading does not load, save or settle rewards. Calling before assets and Campaign rewards are initialized throws `IllegalStateException`. The API exposes no consumable inventory, slots or item actions. HUD drawing remains unchanged; the snapshot alone does not display Credits in Endless.
 
 ## Verification
 
