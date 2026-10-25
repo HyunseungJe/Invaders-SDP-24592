@@ -75,6 +75,7 @@ public final class Core {
 	private static ShopController shopController;
 	/** Rewards shared by Campaign stages and the HUD for this session. */
 	private static CampaignRewards campaignRewards;
+	private static EndlessRewards endlessRewards;
 	private static RecordsService recordsService;
 	/** Application logger. */
 	private static final Logger LOGGER = Logger.getLogger(Core.class
@@ -132,6 +133,7 @@ public final class Core {
 		}
 
 		campaignRewards = new CampaignRewards(playerAssets, getFileManager());
+		endlessRewards = new EndlessRewards(playerAssets, getFileManager());
 
 		recordsService = new RecordsService(new java.io.File(System.getProperty("user.home"),
 				".space-invaders/records-achievements.properties").toPath());
@@ -195,7 +197,7 @@ public final class Core {
 						runCampaignStage((GameScreen) currentScreen, campaignRewards,
 								screen -> frame.setScreen(screen));
 						LOGGER.info("Closing game screen.");
-						resolveCampaignRewards(campaignRewards, false);
+						resolveRewards(false);
 
 						boolean stageCleared = ((GameScreen) currentScreen).isStageCleared();
 						gameState = ((GameScreen) currentScreen).getGameState();
@@ -252,7 +254,7 @@ public final class Core {
 					// Shop.
 					currentScreen = new ShopScreen(width, height, FPS, shopController);
 					returnCode = frame.setScreen(currentScreen);
-					resolveCampaignRewards(campaignRewards, false);
+					resolveRewards(false);
 					break;
 				case 11: {
 					currentScreen = new HangarMenuScreen(width, height, FPS);
@@ -303,8 +305,10 @@ public final class Core {
 							FPS, infiniteSession);
 					LOGGER.info("Starting " + WIDTH + "x" + HEIGHT
 							+ " infinite game screen at " + FPS + " fps.");
-					frame.setScreen(currentScreen);
+					runEndless((InfiniteGameScreen) currentScreen, endlessRewards,
+							screen -> frame.setScreen(screen));
 					LOGGER.info("Closing infinite game screen.");
+					resolveRewards(false);
 
 					gameState = ((InfiniteGameScreen) currentScreen).getGameState();
 					if (!((InfiniteGameScreen) currentScreen).isAbandoned()) {
@@ -326,7 +330,7 @@ public final class Core {
 					break;
 			}
 
-			if (returnCode == 0 && !resolveCampaignRewards(campaignRewards, true)) {
+			if (returnCode == 0 && !resolveRewards(true)) {
 				returnCode = 1;
 			}
 		} while (returnCode != 0);
@@ -349,8 +353,30 @@ public final class Core {
 		}
 	}
 
-	private static boolean resolveCampaignRewards(final CampaignRewards rewards, final boolean exiting) {
-		SettlementResult result = rewards.retryPendingRewards();
+	/** Keeps earned Endless rewards even when the existing records path abandons a run. */
+	static void runEndless(final InfiniteGameScreen screen, final EndlessRewards rewards,
+			final Consumer<InfiniteGameScreen> runner) {
+		Objects.requireNonNull(runner, "runner");
+		try (EndlessRewards.RunSubscription subscription = rewards.subscribe(
+				screen.getGameplayEvents(), screen.getActiveRunId())) {
+			runner.accept(screen);
+		}
+	}
+
+	/** Attempts both modes before reporting a failure, using the same saved assets. */
+	static SettlementResult retryRewards(final CampaignRewards campaign, final EndlessRewards endless) {
+		SettlementResult campaignResult = campaign.retryPendingRewards();
+		SettlementResult endlessResult = endless.retryPendingRewards();
+		if (campaignResult == SettlementResult.SETTLEMENT_FAILED
+				|| endlessResult == SettlementResult.SETTLEMENT_FAILED)
+			return SettlementResult.SETTLEMENT_FAILED;
+		if (campaignResult == SettlementResult.SAVE_FAILED || endlessResult == SettlementResult.SAVE_FAILED)
+			return SettlementResult.SAVE_FAILED;
+		return SettlementResult.SUCCESS;
+	}
+
+	private static boolean resolveRewards(final boolean exiting) {
+		SettlementResult result = retryRewards(campaignRewards, endlessRewards);
 		while (result != SettlementResult.SUCCESS) {
 			String message = result == SettlementResult.SETTLEMENT_FAILED
 					? "Your balance is full. Earned Credits remain pending in this session.\n"
@@ -364,7 +390,7 @@ public final class Core {
 					"Unable to save rewards", JOptionPane.DEFAULT_OPTION,
 					JOptionPane.WARNING_MESSAGE, null, options, "Retry");
 			if (choice != 0) return !exiting || choice == 2;
-			result = rewards.retryPendingRewards();
+			result = retryRewards(campaignRewards, endlessRewards);
 		}
 		return true;
 	}
@@ -531,7 +557,9 @@ public final class Core {
 		if (campaignRewards == null) {
 			throw new IllegalStateException("Campaign rewards have not been initialized.");
 		}
-		return new AssetHudSnapshot((long) shop.getBalance() + campaignRewards.getPendingCurrency());
+		long pending = campaignRewards.getPendingCurrency();
+		if (endlessRewards != null) pending += endlessRewards.getPendingCurrency();
+		return new AssetHudSnapshot((long) shop.getBalance() + pending);
 	}
 
 	/**
