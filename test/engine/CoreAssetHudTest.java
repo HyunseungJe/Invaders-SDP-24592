@@ -5,6 +5,8 @@ import currency.PlayerAssets;
 import currency.PlayerAssetsState;
 import currency.PurchaseResult;
 import event.LevelCompletedEvent;
+import event.DefeatedEnemyType;
+import event.EnemyDefeatedEvent;
 import hud.AssetHudSnapshot;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -71,6 +73,27 @@ class CoreAssetHudTest {
         assertSame(shop, Core.getShopController());
         assertEquals(ShopController.SaveStatus.NOT_NEEDED, shop.getSaveStatus());
         assertFalse(Files.exists(save));
+    }
+
+    @Test
+    void liveDefeatsRemainInTheTotalWhenABalanceLimitDelaysSettlement() throws Exception {
+        assertTrue(assets.restore(new PlayerAssetsState(Integer.MAX_VALUE, null, null)));
+        rewards.startRun("campaign");
+        GameScreen game = new GameScreen(new GameState(1, 0, 3, 0, 0),
+                new GameSettings(1, 1, 60, 2000), false, 448, 520, 60);
+        Core.runCampaignStage(game, rewards, screen -> {
+            screen.getGameplayEvents().publish(new EnemyDefeatedEvent("campaign", "one", DefeatedEnemyType.A));
+            assertEquals((long) Integer.MAX_VALUE + 10, Core.getAssetHudSnapshot().getCredits());
+            screen.getGameplayEvents().publish(new LevelCompletedEvent(1, GameplayConfig.EASY));
+            assertEquals((long) Integer.MAX_VALUE + 10, Core.getAssetHudSnapshot().getCredits());
+        });
+        assertEquals((long) Integer.MAX_VALUE + 60, Core.getAssetHudSnapshot().getCredits());
+        assertEquals(PurchaseResult.SUCCESS, shop.purchase(PermanentUpgrade.HULL.getProductId(1)));
+        assertEquals((long) Integer.MAX_VALUE - 40, Core.getAssetHudSnapshot().getCredits());
+        assertEquals(SettlementResult.SUCCESS, rewards.retryPendingRewards());
+        assertEquals(0, rewards.getPendingCurrency());
+        assertEquals((long) Integer.MAX_VALUE - 40, Core.getAssetHudSnapshot().getCredits());
+        assertEquals(Integer.MAX_VALUE - 40, files.loadPlayerAssets(save).getBalance());
     }
 
     @Test
