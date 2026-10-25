@@ -11,12 +11,15 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import shop.ShopController;
 import shop.ShopTestFixtures;
@@ -102,6 +105,36 @@ class ShipSelectionUnlockTest {
         assertTrue(shop.snapshot().getUnlockedContentIds().isEmpty());
     }
 
+    @ParameterizedTest
+    @MethodSource("simultaneousInputs")
+    void mouseConfirmationCannotChangeToALockedShipInTheSameFrame(ShipType clicked, int code)
+            throws Exception {
+        finishSelectionCooldown();
+        int y = screen.getHeight() / 3 + clicked.ordinal() * 85;
+        Core.getInputManager().mouseMoved(new MouseEvent(inputSource, MouseEvent.MOUSE_MOVED,
+                0, 0, 224, y, 0, false));
+        key(code, true);
+        Core.getInputManager().mousePressed(new MouseEvent(inputSource, MouseEvent.MOUSE_PRESSED,
+                0, 0, 224, y, 1, false, MouseEvent.BUTTON1));
+        screen.update();
+
+        assertFalse(screen.isRunning);
+        assertEquals(ShipSelectionScreen.SHIP_SELECTED, screen.returnCode);
+        assertEquals(clicked, screen.getSelectedShip());
+        assertTrue(shop.isShipAvailable(screen.getSelectedShip()));
+        assertFalse(shop.isShipAvailable(ShipType.SPEEDSTER));
+        assertEquals(200, shop.getBalance());
+        assertTrue(shop.snapshot().getUnlockedContentIds().isEmpty());
+    }
+
+    private static Stream<Arguments> simultaneousInputs() {
+        return Stream.of(
+                Arguments.of(ShipType.STANDARD, KeyEvent.VK_DOWN),
+                Arguments.of(ShipType.STANDARD, KeyEvent.VK_S),
+                Arguments.of(ShipType.TANK, KeyEvent.VK_UP),
+                Arguments.of(ShipType.TANK, KeyEvent.VK_W));
+    }
+
     @Test
     void escapeStillLeavesTheLockedSelection() throws Exception {
         tap(KeyEvent.VK_DOWN);
@@ -113,15 +146,19 @@ class ShipSelectionUnlockTest {
     }
 
     private void tap(int code) throws Exception {
+        finishSelectionCooldown();
+        key(code, true);
+        screen.update();
+        key(code, false);
+    }
+
+    private void finishSelectionCooldown() throws Exception {
         Field field = ShipSelectionScreen.class.getDeclaredField("selectionCooldown");
         field.setAccessible(true);
         Object cooldown = field.get(screen);
         Field time = cooldown.getClass().getDeclaredField("time");
         time.setAccessible(true);
         time.setLong(cooldown, 0);
-        key(code, true);
-        screen.update();
-        key(code, false);
     }
 
     private void key(int code, boolean down) {

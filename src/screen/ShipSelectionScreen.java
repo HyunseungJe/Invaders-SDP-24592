@@ -82,6 +82,7 @@ public class ShipSelectionScreen extends Screen {
                 && this.inputDelay.checkFinished()) {
             this.selectedIndex = hoveredIndex;
             confirmSelection();
+            if (!this.isRunning) return;
         }
 
         draw();
